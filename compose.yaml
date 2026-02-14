@@ -1,0 +1,94 @@
+services:
+  # Ollama服务 - 运行大语言模型和嵌入模型
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rag-ollama
+    restart: unless-stopped
+    ports:
+      - ${OLLAMA_EXPOSE_PORT}:11434
+    volumes:
+      - ${OLLAMA_STORE}:/root/.ollama  # 持久化模型数据
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h  # 模型保持加载的时间
+    networks:
+      - rag-network
+    # 初始化脚本：启动时自动下载需要的模型
+    entrypoint: |
+      sh -c "
+      echo 'Starting Ollama...'
+      ollama serve &
+      sleep 5
+      echo 'Pulling embedding model...'
+      ollama pull nomic-embed-text
+      echo 'Pulling chat model...'
+      ollama pull qwen2:7b
+      echo 'Models ready!'
+      tail -f /dev/null
+      "
+
+  # PostgreSQL + PGVector - 向量数据库
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    restart: unless-stopped
+    ports:
+      - ${DATABASE_EXPOSE_PORT}:5432
+    environment:
+      - POSTGRES_DB=${DATABASE_DB}
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+    volumes:
+      - ${DATABASE_STORE}:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rag-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U raguser -d vectordb" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: 'redis:7-alpine'
+    container_name: redis
+    hostname: redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - ${REDIS_EXPOSE_PORT}:6379
+    volumes:
+      - ${REDIS_STORE}:/data
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      extra_hosts:
+        - host.docker.internal:host-gateway
+    container_name: web
+    hostname: web
+    environment:
+      LOG_PATH: ${LOG_PATH}
+      DATABASE_DB: ${DATABASE_DB}
+      DATABASE_DEFAULT_SCHEMA: ${DATABASE_DEFAULT_SCHEMA}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_HOST_PORT: ${DATABASE_HOST_PORT}
+      REDIS_HOST: redis
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+    ports:
+      - ${WEB_EXPOSE_PORT}:8080
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ${LOG_PATH}:/var/log
+
+# 网络配置
+networks:
+  rag-network:
+    driver: bridge
