@@ -13,11 +13,9 @@ spring:
   # JPA 配置
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
   data:
     redis:
       port: ${REDIS_PORT:6379}
@@ -31,7 +29,7 @@ langchain4j:
     chat-model:
       model-name: qwen2:7b
       temperature: 0.7
-      timeout: 60s
+      timeout: ${OLLAMA_CHAT_TIMEOUT:1h}
     embedding-model:
       model-name: nomic-embed-text
-      timeout: 30s
+      timeout: ${OLLAMA_EMBEDDING_TIMEOUT:30s}

@@ -1,27 +1,36 @@
--- 启用向量扩展
+-- 启用 PGVector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 创建文档片段表
-CREATE TABLE IF NOT EXISTS document_segments (
-                                                 id BIGSERIAL PRIMARY KEY,
-                                                 text TEXT NOT NULL,
-                                                 embedding vector(768),  -- nomic-embed-text 输出768维向量
-                                                 metadata JSONB,
-                                                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- 创建必要的 schema（如果不存在）
+CREATE SCHEMA IF NOT EXISTS public;
+
+-- 创建文档表
+CREATE TABLE IF NOT EXISTS document (
+    id BIGSERIAL PRIMARY KEY,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size BIGINT NOT NULL,
+    file_hash VARCHAR(1000) NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    upload_time TIMESTAMP NOT NULL,
+    update_time TIMESTAMP NOT NULL,
+    processed BOOLEAN NOT NULL,
+    error_message VARCHAR(500)
 );
 
--- 创建索引以加速相似度检索
-CREATE INDEX IF NOT EXISTS idx_document_segments_embedding
-    ON document_segments
-        USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+-- 创建文档片段表
+CREATE TABLE IF NOT EXISTS document_chunk (
+    id BIGSERIAL PRIMARY KEY,
+    document_id BIGINT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding vector(768) NOT NULL,
+    create_time TIMESTAMP NOT NULL,
+    metadata VARCHAR(500) NOT NULL,
+    token_count INTEGER NOT NULL
+);
 
--- 创建元数据查询索引
-CREATE INDEX IF NOT EXISTS idx_document_segments_metadata
-    ON document_segments
-        USING gin (metadata);
-
--- 创建全文搜索索引（用于BM25检索）
-CREATE INDEX IF NOT EXISTS idx_document_segments_text
-    ON document_segments
-        USING gin (to_tsvector('simple', text));
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_document_id ON document_chunk(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunk_index ON document_chunk(chunk_index);
