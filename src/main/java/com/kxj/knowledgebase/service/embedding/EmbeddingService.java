@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+
 @Slf4j
 @Service
 public class EmbeddingService {
@@ -20,13 +22,17 @@ public class EmbeddingService {
     @Value("${langchain4j.ollama.embedding-model.model-name}")
     private String modelName;
 
+    @Value("${langchain4j.ollama.embedding-model.timeout}")
+    private Duration timeout;
+
     @PostConstruct
     public void init() {
         log.info("[AI: 初始化嵌入模型，baseUrl: {}, modelName: {}]", baseUrl, modelName);
         this.embeddingModel = OllamaEmbeddingModel.builder()
-            .baseUrl(baseUrl)
-            .modelName(modelName)
-            .build();
+                .baseUrl(baseUrl)
+                .modelName(modelName)
+                .timeout(timeout)
+                .build();
     }
 
     public float[] embed(String text) {

@@ -32,4 +32,4 @@ langchain4j:
       timeout: ${OLLAMA_CHAT_TIMEOUT:1h}
     embedding-model:
       model-name: nomic-embed-text
-      timeout: ${OLLAMA_EMBEDDING_TIMEOUT:30s}
+      timeout: ${OLLAMA_EMBEDDING_TIMEOUT:1h}
