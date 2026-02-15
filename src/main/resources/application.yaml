@@ -47,3 +47,10 @@ langchain4j:
     embedding-model:
       model-name: nomic-embed-text
       timeout: ${OLLAMA_EMBEDDING_TIMEOUT:1h}
+
+# 文档处理配置
+document:
+  processing:
+    chunk-size: ${DOCUMENT_CHUNK_SIZE:300}
+    batch-size: ${DOCUMENT_BATCH_SIZE:10}
+    enable-parallel-processing: ${DOCUMENT_ENABLE_PARALLEL:true}
