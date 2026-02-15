@@ -20,4 +20,10 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
 
     @Query(value = "SELECT * FROM document_chunk WHERE document_id = :documentId ORDER BY embedding <=> CAST(:embedding AS vector) LIMIT :limit", nativeQuery = true)
     List<DocumentChunk> findNearestNeighborsByDocumentId(@Param("embedding") String embedding, @Param("documentId") Long documentId, @Param("limit") int limit);
+
+    @Query(value = "SET ivfflat.probes = :probes", nativeQuery = true)
+    void setIvfflatProbes(@Param("probes") int probes);
+
+    @Query(value = "SET hnsw.ef_search = :efSearch", nativeQuery = true)
+    void setHnswEfSearch(@Param("efSearch") int efSearch);
 }

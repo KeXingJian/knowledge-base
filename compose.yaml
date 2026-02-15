@@ -40,7 +40,6 @@ services:
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
     volumes:
       - ${DATABASE_STORE}:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - rag-network
     healthcheck:
@@ -58,6 +57,28 @@ services:
     volumes:
       - ${REDIS_STORE}:/data
     restart: always
+
+  # MinIO - 对象存储服务
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: unless-stopped
+    ports:
+      - ${MINIO_EXPOSE_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:9001
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    volumes:
+      - ${MINIO_STORE}:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   web:
     build:
@@ -78,10 +99,18 @@ services:
       REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
+      OLLAMA_CHAT_TIMEOUT: ${OLLAMA_CHAT_TIMEOUT}
+      OLLAMA_EMBEDDING_TIMEOUT: ${OLLAMA_EMBEDDING_TIMEOUT}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      MINIO_SECURE: ${MINIO_SECURE}
     depends_on:
       - postgres
       - redis
       - ollama
+      - minio
     ports:
       - ${WEB_EXPOSE_PORT}:8080
     extra_hosts:

@@ -1,3 +1,6 @@
+-- Flyway迁移脚本V1：初始化数据库表结构
+-- 创建必要的表和基础索引
+
 -- 启用 PGVector 扩展
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -31,6 +34,6 @@ CREATE TABLE IF NOT EXISTS document_chunk (
     token_count INTEGER NOT NULL
 );
 
--- 创建索引
+-- 创建基础索引
 CREATE INDEX IF NOT EXISTS idx_document_id ON document_chunk(document_id);
 CREATE INDEX IF NOT EXISTS idx_chunk_index ON document_chunk(chunk_index);

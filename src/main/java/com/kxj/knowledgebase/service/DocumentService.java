@@ -7,6 +7,7 @@ import com.kxj.knowledgebase.service.embedding.EmbeddingService;
 import com.kxj.knowledgebase.service.loader.DocumentLoaderFactory;
 import com.kxj.knowledgebase.service.splitter.Chunk;
 import com.kxj.knowledgebase.service.splitter.SimpleTextSplitter;
+import com.kxj.knowledgebase.service.storage.MinioService;
 import com.kxj.knowledgebase.service.storage.VectorStoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,11 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +34,7 @@ public class DocumentService {
     private final SimpleTextSplitter textSplitter;
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
+    private final MinioService minioService;
 
     private static final String UPLOAD_DIR = "./uploads";
     private static final int BATCH_SIZE = 10;
@@ -51,20 +50,17 @@ public class DocumentService {
             throw new IllegalArgumentException("文档已存在");
         });
 
-        Path uploadPath = Paths.get(UPLOAD_DIR);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-
         String fileName = file.getOriginalFilename();
         String fileType = getFileExtension(fileName);
-        Path filePath = uploadPath.resolve(fileName);
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        String objectName = fileHash + "/" + fileName;
+        
+        log.info("[AI: 开始上传文件到 MinIO: {}]", objectName);
+        minioService.uploadFile(objectName, file.getInputStream(), file.getSize(), file.getContentType());
 
         Document document = Document.builder()
             .fileName(fileName)
             .fileType(fileType)
-            .filePath(filePath.toString())
+            .filePath(objectName)
             .fileSize(file.getSize())
             .fileHash(fileHash)
             .chunkCount(0)
@@ -76,7 +72,7 @@ public class DocumentService {
         document = documentRepository.save(document);
 
         log.info("[AI: 开始流式处理文档]");
-        processDocumentInBatches(filePath, document);
+        processDocumentInBatches(objectName, document);
 
         document.setProcessed(true);
         document.setUpdateTime(LocalDateTime.now());
@@ -86,13 +82,15 @@ public class DocumentService {
         return document;
     }
 
-    private void processDocumentInBatches(Path filePath, Document document) throws IOException {
-        String fileType = getFileExtension(filePath.getFileName().toString());
-        String content = documentLoaderFactory.getLoader(fileType).load(filePath);
-
-        log.info("[AI: 开始流式切分和向量化]");
+    private void processDocumentInBatches(String objectName, Document document) throws IOException {
+        String fileType = getFileExtension(objectName);
         
-        try (BufferedReader reader = new BufferedReader(new StringReader(content))) {
+        log.info("[AI: 开始从 MinIO 下载文件: {}]", objectName);
+        try (InputStream inputStream = minioService.downloadFile(objectName);
+             BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(inputStream))) {
+            
+            log.info("[AI: 开始流式切分和向量化]");
+            
             StringBuilder chunkBuilder = new StringBuilder();
             int chunkIndex = 0;
             int totalChunks = 0;
@@ -165,12 +163,10 @@ public class DocumentService {
         vectorStoreService.deleteChunksByDocumentId(documentId);
 
         try {
-            Path filePath = Paths.get(document.getFilePath());
-            if (Files.exists(filePath)) {
-                Files.delete(filePath);
-            }
-        } catch (IOException e) {
-            log.error("[AI: 删除文件失败: {}]", document.getFilePath(), e);
+            log.info("[AI: 开始从 MinIO 删除文件: {}]", document.getFilePath());
+            minioService.deleteFile(document.getFilePath());
+        } catch (Exception e) {
+            log.error("[AI: 删除 MinIO 文件失败: {}]", document.getFilePath(), e);
         }
 
         documentRepository.deleteById(documentId);
