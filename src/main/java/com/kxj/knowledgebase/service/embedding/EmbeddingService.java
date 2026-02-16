@@ -43,7 +43,4 @@ public class EmbeddingService {
         return vector;
     }
 
-    public int getDimension() {
-        return 768;
-    }
 }

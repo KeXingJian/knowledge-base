@@ -21,6 +21,15 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, Lo
     @Query(value = "SELECT * FROM document_chunk WHERE document_id = :documentId ORDER BY embedding <=> CAST(:embedding AS vector) LIMIT :limit", nativeQuery = true)
     List<DocumentChunk> findNearestNeighborsByDocumentId(@Param("embedding") String embedding, @Param("documentId") Long documentId, @Param("limit") int limit);
 
+    @Query(value = "SELECT * FROM fulltext_search_chunks(:query, :limit)", nativeQuery = true)
+    List<FullTextSearchResult> fullTextSearch(@Param("query") String query, @Param("limit") int limit);
+
+    @Query(value = "SELECT * FROM document_chunk WHERE content_tsv @@ plainto_tsquery('simple', :query) ORDER BY ts_rank(content_tsv, plainto_tsquery('simple', :query)) DESC LIMIT :limit", nativeQuery = true)
+    List<DocumentChunk> findByContentContaining(@Param("query") String query, @Param("limit") int limit);
+
+    @Query(value = "SELECT * FROM document_chunk WHERE content LIKE CONCAT('%', :query, '%') LIMIT :limit", nativeQuery = true)
+    List<DocumentChunk> findByContentLike(@Param("query") String query, @Param("limit") int limit);
+
     @Query(value = "SET ivfflat.probes = :probes", nativeQuery = true)
     void setIvfflatProbes(@Param("probes") int probes);
 

@@ -220,20 +220,24 @@ public class DocumentService {
         return documentChunk;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDocument(Long documentId) {
         log.info("[AI: 开始删除文档: {}]", documentId);
         
         Document document = documentRepository.findById(documentId)
-            .orElseThrow(() -> new IllegalArgumentException("文档不存在"));
+            .orElseThrow(() -> new IllegalArgumentException("文档不存在: " + documentId));
 
+        log.info("[AI: 开始删除文档 {} 的 {} 个切片]", documentId, document.getChunkCount());
         vectorStoreService.deleteChunksByDocumentId(documentId);
+        log.info("[AI: 切片删除完成]");
 
         try {
             log.info("[AI: 开始从 MinIO 删除文件: {}]", document.getFilePath());
             minioService.deleteFile(document.getFilePath());
+            log.info("[AI: MinIO 文件删除完成]");
         } catch (Exception e) {
             log.error("[AI: 删除 MinIO 文件失败: {}]", document.getFilePath(), e);
+            throw new RuntimeException("删除MinIO文件失败: " + e.getMessage(), e);
         }
 
         documentRepository.deleteById(documentId);
@@ -243,6 +247,12 @@ public class DocumentService {
     public List<Document> listDocuments() {
         log.info("[AI: 获取文档列表]");
         return documentRepository.findAll();
+    }
+
+    public Document getDocument(Long documentId) {
+        log.info("[AI: 获取文档详情: {}]", documentId);
+        return documentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("文档不存在: " + documentId));
     }
 
     private String floatArrayToString(float[] array) {

@@ -44,7 +44,7 @@ public class MinioService {
         }
     }
 
-    public String uploadFile(String objectName, InputStream inputStream, long size, String contentType) {
+    public void uploadFile(String objectName, InputStream inputStream, long size, String contentType) {
         try {
             log.info("[AI: 开始上传文件到 MinIO: {}, size: {}]", objectName, size);
             
@@ -58,7 +58,6 @@ public class MinioService {
             );
             
             log.info("[AI: 文件上传成功: {}]", objectName);
-            return objectName;
         } catch (Exception e) {
             log.error("[AI: 文件上传失败: {}]", objectName, e);
             throw new RuntimeException("文件上传失败", e);

@@ -30,7 +30,7 @@ public class SimpleTextSplitter implements TextSplitter {
         log.info("[AI: 开始切分文本，总长度: {}]", text.length());
         List<Chunk> chunks = new ArrayList<>();
 
-        if (text == null || text.isEmpty()) {
+        if (text.isEmpty()) {
             return chunks;
         }
 
@@ -49,7 +49,6 @@ public class SimpleTextSplitter implements TextSplitter {
                 String chunkContent = text.substring(start, end).trim();
                 if (!chunkContent.isEmpty()) {
                     int tokenCount = estimateTokenCount(chunkContent);
-                    String metadata = "chunk_index=" + index + ",token_count=" + tokenCount;
                     chunks.add(new Chunk(chunkContent, index++, tokenCount));
                 }
             }

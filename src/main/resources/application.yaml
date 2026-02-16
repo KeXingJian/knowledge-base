@@ -54,3 +54,12 @@ document:
     chunk-size: ${DOCUMENT_CHUNK_SIZE:300}
     batch-size: ${DOCUMENT_BATCH_SIZE:10}
     enable-parallel-processing: ${DOCUMENT_ENABLE_PARALLEL:true}
+
+# 检索配置
+retrieval:
+  search:
+    top-k: ${RETRIEVAL_TOP_K:3}
+    vector-weight: ${RETRIEVAL_VECTOR_WEIGHT:0.6}
+    text-weight: ${RETRIEVAL_TEXT_WEIGHT:0.4}
+    enable-fulltext-search: ${RETRIEVAL_ENABLE_FULLTEXT:true}
+    fallback-to-keyword-search: ${RETRIEVAL_FALLBACK_KEYWORD:true}

@@ -1,0 +1,10 @@
+# 对话配置
+conversation:
+  # 最大历史消息数量
+  max-history-messages: 10
+  # 对话保留天数
+  max-conversation-days: 30
+  # 是否自动生成标题
+  enable-auto-title: true
+  # 标题最大长度
+  title-max-length: 50
