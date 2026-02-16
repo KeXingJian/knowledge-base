@@ -1,14 +1,13 @@
 package com.kxj.knowledgebase.service.storage;
 
 import io.minio.*;
-import io.minio.messages.Bucket;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
-import java.util.List;
+
 
 @Slf4j
 @Service
@@ -98,27 +97,4 @@ public class MinioService {
         }
     }
 
-    public boolean fileExists(String objectName) {
-        try {
-            minioClient.statObject(
-                    StatObjectArgs.builder()
-                            .bucket(minioProperties.getBucketName())
-                            .object(objectName)
-                            .build()
-            );
-            return true;
-        } catch (Exception e) {
-            log.warn("[AI: 文件不存在: {}]", objectName);
-            return false;
-        }
-    }
-
-    public List<Bucket> listBuckets() {
-        try {
-            return minioClient.listBuckets();
-        } catch (Exception e) {
-            log.error("[AI: 获取 bucket 列表失败]", e);
-            throw new RuntimeException("获取 bucket 列表失败", e);
-        }
-    }
 }

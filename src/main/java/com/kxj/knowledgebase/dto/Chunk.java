@@ -1,4 +1,4 @@
-package com.kxj.knowledgebase.service.splitter;
+package com.kxj.knowledgebase.dto;
 
 import lombok.Data;
 

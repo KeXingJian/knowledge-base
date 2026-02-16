@@ -1,5 +1,6 @@
 package com.kxj.knowledgebase.service.rag;
 
+import com.kxj.knowledgebase.dto.ChatMessage;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import jakarta.annotation.PostConstruct;

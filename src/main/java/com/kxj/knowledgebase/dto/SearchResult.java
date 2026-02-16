@@ -1,4 +1,4 @@
-package com.kxj.knowledgebase.service.retriever;
+package com.kxj.knowledgebase.dto;
 
 import com.kxj.knowledgebase.entity.DocumentChunk;
 import lombok.Data;

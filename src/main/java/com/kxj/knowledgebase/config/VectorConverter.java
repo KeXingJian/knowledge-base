@@ -8,9 +8,6 @@ public class VectorConverter implements AttributeConverter<String, Object> {
 
     @Override
     public Object convertToDatabaseColumn(String attribute) {
-        if (attribute == null) {
-            return null;
-        }
         return attribute;
     }
 

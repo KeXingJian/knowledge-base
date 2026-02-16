@@ -5,11 +5,10 @@ import com.kxj.knowledgebase.entity.Document;
 import com.kxj.knowledgebase.entity.DocumentChunk;
 import com.kxj.knowledgebase.repository.DocumentRepository;
 import com.kxj.knowledgebase.service.embedding.EmbeddingService;
-import com.kxj.knowledgebase.service.loader.DocumentLoaderFactory;
-import com.kxj.knowledgebase.service.splitter.Chunk;
-import com.kxj.knowledgebase.service.splitter.SimpleTextSplitter;
 import com.kxj.knowledgebase.service.storage.MinioService;
 import com.kxj.knowledgebase.service.storage.VectorStoreService;
+import com.kxj.knowledgebase.util.FileUtils;
+import com.kxj.knowledgebase.util.StringUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,8 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +30,6 @@ import java.util.concurrent.ExecutorService;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
-    private final DocumentLoaderFactory documentLoaderFactory;
-    private final SimpleTextSplitter textSplitter;
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
     private final MinioService minioService;
@@ -48,7 +43,7 @@ public class DocumentService {
         long startTime = System.currentTimeMillis();
         log.info("[AI: 开始处理文档: {}]", file.getOriginalFilename());
 
-        String fileHash = calculateFileHash(file);
+        String fileHash = FileUtils.calculateFileHash(file);
         
         documentRepository.findByFileHash(fileHash).ifPresent(doc -> {
             log.info("[AI: 文档已存在，跳过处理: {}]", file.getOriginalFilename());
@@ -56,7 +51,7 @@ public class DocumentService {
         });
 
         String fileName = file.getOriginalFilename();
-        String fileType = getFileExtension(fileName);
+        String fileType = FileUtils.getFileExtension(fileName);
         String objectName = fileHash + "/" + fileName;
         
         log.info("[AI: 开始上传文件到 MinIO: {}]", objectName);
@@ -90,8 +85,6 @@ public class DocumentService {
     }
 
     private void processDocumentInBatches(String objectName, Document document) throws IOException {
-        String fileType = getFileExtension(objectName);
-        
         log.info("[AI: 开始从 MinIO 下载文件: {}]", objectName);
         try (InputStream inputStream = minioService.downloadFile(objectName);
              BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(inputStream))) {
@@ -115,7 +108,7 @@ public class DocumentService {
                 }
             }
 
-            if (chunkBuilder.length() > 0) {
+            if (!chunkBuilder.isEmpty()) {
                 chunkContents.add(chunkBuilder.toString());
             }
 
@@ -202,8 +195,8 @@ public class DocumentService {
         log.info("[AI: 开始向量化片段 {}, 内容长度: {}]", index, chunkContent.length());
         
         float[] embedding = embeddingService.embed(chunkContent);
-        String embeddingString = floatArrayToString(embedding);
-        int tokenCount = estimateTokenCount(chunkContent);
+        String embeddingString = StringUtils.floatArrayToString(embedding);
+        int tokenCount = StringUtils.estimateTokenCount(chunkContent);
         String metadata = "chunk_index=" + index + ",token_count=" + tokenCount;
 
         DocumentChunk documentChunk = DocumentChunk.builder()
@@ -253,44 +246,5 @@ public class DocumentService {
         log.info("[AI: 获取文档详情: {}]", documentId);
         return documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("文档不存在: " + documentId));
-    }
-
-    private String floatArrayToString(float[] array) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < array.length; i++) {
-            if (i > 0) {
-                sb.append(",");
-            }
-            sb.append(array[i]);
-        }
-        sb.append("]");
-        return sb.toString();
-    }
-
-    private int estimateTokenCount(String text) {
-        return text.length() / 3;
-    }
-
-    private String calculateFileHash(MultipartFile file) throws IOException {
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5");
-            byte[] bytes = file.getBytes();
-            byte[] digest = md.digest(bytes);
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            throw new IOException("计算文件哈希失败", e);
-        }
-    }
-
-    private String getFileExtension(String fileName) {
-        int lastDotIndex = fileName.lastIndexOf('.');
-        if (lastDotIndex > 0 && lastDotIndex < fileName.length() - 1) {
-            return fileName.substring(lastDotIndex + 1);
-        }
-        return "";
     }
 }

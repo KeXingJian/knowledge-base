@@ -7,10 +7,10 @@ import com.kxj.knowledgebase.entity.Message;
 import com.kxj.knowledgebase.repository.ConversationRepository;
 import com.kxj.knowledgebase.repository.MessageRepository;
 import com.kxj.knowledgebase.service.embedding.EmbeddingService;
-import com.kxj.knowledgebase.service.rag.ChatMessage;
+import com.kxj.knowledgebase.dto.ChatMessage;
 import com.kxj.knowledgebase.service.rag.RAGService;
 import com.kxj.knowledgebase.service.retriever.HybridRetriever;
-import com.kxj.knowledgebase.service.retriever.SearchResult;
+import com.kxj.knowledgebase.dto.SearchResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -72,7 +72,7 @@ public class ConversationService {
     }
 
     @Transactional
-    public Message addMessage(Long conversationId, String role, String content, String context, String retrievedChunks) {
+    public void addMessage(Long conversationId, String role, String content, String context, String retrievedChunks) {
         log.info("[AI: 添加消息，conversationId: {}, role: {}]", conversationId, role);
 
         Message message = Message.builder()
@@ -93,7 +93,6 @@ public class ConversationService {
         });
 
         log.info("[AI: 消息添加成功，messageId: {}]", message.getId());
-        return message;
     }
 
     public List<Message> getConversationMessages(Long conversationId) {

@@ -1,4 +1,4 @@
-package com.kxj.knowledgebase.service.rag;
+package com.kxj.knowledgebase.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

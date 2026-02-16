@@ -4,7 +4,7 @@ import com.kxj.knowledgebase.constants.CacheConstants;
 import com.kxj.knowledgebase.service.embedding.EmbeddingService;
 import com.kxj.knowledgebase.service.rag.RAGService;
 import com.kxj.knowledgebase.service.retriever.HybridRetriever;
-import com.kxj.knowledgebase.service.retriever.SearchResult;
+import com.kxj.knowledgebase.dto.SearchResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;

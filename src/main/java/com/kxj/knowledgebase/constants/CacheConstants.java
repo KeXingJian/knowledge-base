@@ -8,6 +8,4 @@ public class CacheConstants {
     public static final String CONVERSATION_CACHE_PREFIX = "conversation:";
     public static final long CONVERSATION_CACHE_TTL = 7200;
 
-    private CacheConstants() {
-    }
 }

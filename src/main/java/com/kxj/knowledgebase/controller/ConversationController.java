@@ -1,5 +1,6 @@
 package com.kxj.knowledgebase.controller;
 
+import com.kxj.knowledgebase.dto.ApiResponse;
 import com.kxj.knowledgebase.entity.Conversation;
 import com.kxj.knowledgebase.entity.Message;
 import com.kxj.knowledgebase.service.ConversationService;
@@ -8,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -19,47 +21,47 @@ public class ConversationController {
     private final ConversationService conversationService;
 
     @PostMapping("/chat")
-    public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public ApiResponse<ChatResponse> chat(@RequestBody ChatRequest request) {
         log.info("[AI: 收到聊天请求，sessionId: {}]", request.getSessionId());
 
         String answer = conversationService.chat(request.getSessionId(), request.getQuestion());
 
-        return ResponseEntity.ok(ChatResponse.builder()
+        return ApiResponse.success(ChatResponse.builder()
                 .answer(answer)
                 .sessionId(request.getSessionId())
                 .build());
     }
 
     @GetMapping("/{sessionId}")
-    public ResponseEntity<Conversation> getConversation(@PathVariable String sessionId) {
+    public ApiResponse<Conversation> getConversation(@PathVariable String sessionId) {
         log.info("[AI: 获取对话，sessionId: {}]", sessionId);
         Conversation conversation = conversationService.getConversation(sessionId);
-        return ResponseEntity.ok(conversation);
+        return ApiResponse.success(conversation);
     }
 
     @GetMapping
-    public ResponseEntity<List<Conversation>> getAllConversations() {
+    public ApiResponse<List<Conversation>> getAllConversations() {
         log.info("[AI: 获取所有对话列表]");
         List<Conversation> conversations = conversationService.getAllConversations();
-        return ResponseEntity.ok(conversations);
+        return ApiResponse.success(conversations);
     }
 
     @GetMapping("/{sessionId}/messages")
-    public ResponseEntity<List<Message>> getConversationMessages(@PathVariable String sessionId) {
+    public ApiResponse<List<Message>> getConversationMessages(@PathVariable String sessionId) {
         log.info("[AI: 获取对话消息，sessionId: {}]", sessionId);
         Conversation conversation = conversationService.getConversation(sessionId);
         if (conversation == null) {
-            return ResponseEntity.notFound().build();
+            return ApiResponse.success(List.of());
         }
         List<Message> messages = conversationService.getConversationMessages(conversation.getId());
-        return ResponseEntity.ok(messages);
+        return ApiResponse.success(messages);
     }
 
     @DeleteMapping("/{sessionId}")
-    public ResponseEntity<Void> deleteConversation(@PathVariable String sessionId) {
+    public ApiResponse<String> deleteConversation(@PathVariable String sessionId) {
         log.info("[AI: 删除对话，sessionId: {}]", sessionId);
         conversationService.deleteConversation(sessionId);
-        return ResponseEntity.noContent().build();
+        return ApiResponse.success("删除对话成功");
     }
 
     @lombok.Data
