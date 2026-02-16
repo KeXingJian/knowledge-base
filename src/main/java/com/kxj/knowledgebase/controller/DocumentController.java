@@ -70,7 +70,7 @@ public class DocumentController {
     }
 
     @PostMapping("/batch-upload")
-    public ApiResponse<BatchUploadResponse> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
+    public ApiResponse<Void> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
         try {
             log.info("[AI: 收到批量文档上传请求, 文档数量: {}]", files.length);
             
@@ -80,25 +80,8 @@ public class DocumentController {
             if (files.length > 20)
                 return ApiResponse.error("单次最多支持上传20个文件");
 
-            
-            long startTime = System.currentTimeMillis();
-            List<DocumentUploadResult> results = documentService.processDocumentsBatch(List.of(files));
-            long totalProcessingTime = System.currentTimeMillis() - startTime;
-            
-            int successCount = (int) results.stream().filter(DocumentUploadResult::isSuccess).count();
-            int failureCount = results.size() - successCount;
-            
-            BatchUploadResponse response = BatchUploadResponse.builder()
-                .taskId("")
-                .totalDocuments(results.size())
-                .successCount(successCount)
-                .failureCount(failureCount)
-                .totalProcessingTime(totalProcessingTime)
-                .results(results)
-                .build();
-            
-            log.info("[AI: 批量上传完成, 成功: {}, 失败: {}, 总耗时: {}ms]", successCount, failureCount, totalProcessingTime);
-            return ApiResponse.success("批量上传完成", response);
+            documentService.processDocumentsBatch(List.of(files));
+            return ApiResponse.success(null);
         } catch (Exception e) {
             log.error("[AI: 批量上传异常]", e);
             return ApiResponse.error("批量上传失败: " + e.getMessage());
