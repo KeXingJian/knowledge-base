@@ -22,6 +22,20 @@ public class FileUtils {
         }
     }
 
+    public static String calculateFileHash(byte[] bytes) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(bytes);
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            throw new IOException("计算文件哈希失败", e);
+        }
+    }
+
     public static String getFileExtension(String fileName) {
         if (fileName == null || fileName.isEmpty()) {
             return "";

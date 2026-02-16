@@ -42,78 +42,96 @@ public class DocumentService {
     private final ExecutorService embeddingExecutorService;
     private final DocumentProcessingProperties documentProcessingProperties;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    private final Semaphore documentUploadSemaphore = new Semaphore(5);
-
-    private static final String INCREMENT_COUNTER_LUA = 
-        "local key = KEYS[1] " +
-        "local increment = tonumber(ARGV[1]) " +
-        "local current = tonumber(redis.call('GET', key) or '0') " +
-        "local new = current + increment " +
-        "redis.call('SET', key, new) " +
-        "redis.call('EXPIRE', key, ARGV[2]) " +
-        "return new";
+    private final Semaphore documentUploadSemaphore;
+    private final Semaphore chunkProcessingSemaphore;
+    
 
     @Transactional
     public void processDocumentsBatch(List<MultipartFile> files) {
-        log.info("[AI: 开始批量处理文档, 文档数量: {}]", files.size());
+
+        // TODO 仅剔除一个请求已存在的文档,无法处理高并发情况
+        List<MultipartFile> uniqueFiles = files.stream()
+                .filter(file -> {
+                    try {
+                        final String fileHash = FileUtils.calculateFileHash(file);
+                        return documentRepository.findByFileHash(fileHash).isEmpty();
+                    } catch (IOException e) {
+                        log.error("[AI: 检查文档是否存在失败: {}]", file.getOriginalFilename(), e);
+                        return false;
+                    }
+                })
+                .toList();
+
+        log.info("[AI: 开始批量处理文档, 文档数量: {}]", uniqueFiles.size());
         String taskId = UUID.randomUUID().toString();
 
         String completedKey = CacheConstants.DOCUMENT_UPLOAD_PROGRESS_PREFIX + taskId + ":completed";
         String failedKey = CacheConstants.DOCUMENT_UPLOAD_PROGRESS_PREFIX + taskId + ":failed";
         String totalKey = CacheConstants.DOCUMENT_UPLOAD_PROGRESS_PREFIX + taskId + ":total";
 
-        redisTemplate.opsForValue().set(completedKey, 0, CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS);
-        redisTemplate.opsForValue().set(failedKey, 0, CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS);
-        redisTemplate.opsForValue().set(totalKey, files.size(), CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(
+                completedKey, 0, CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS
+        );
+        redisTemplate.opsForValue().set(
+                failedKey, 0, CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS
+        );
+        redisTemplate.opsForValue().set(
+                totalKey, uniqueFiles.size(), CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL, java.util.concurrent.TimeUnit.SECONDS
+        );
 
-        for (MultipartFile file : files) {
-            CompletableFuture.supplyAsync(() -> {
-                try {
-                    documentUploadSemaphore.acquire();
-                    log.info("[AI: 第一层并发: 开始处理文档]");
-                    long startTime = System.currentTimeMillis();
-                    processDocument(file);
-                    long processingTime = System.currentTimeMillis() - startTime;
-                    incrementCounter(completedKey);
-                    log.info("[AI: 文档处理完成: {}, 耗时: {}ms]", file.getOriginalFilename(), processingTime);
-                } catch (Exception e) {
-                    log.error("[AI: 文档处理失败: {}]", file.getOriginalFilename(), e);
-                    incrementCounter(failedKey);
-                } finally {
-                    documentUploadSemaphore.release();
-                }
-                return null;
-            }, embeddingExecutorService);
+        for (MultipartFile file : uniqueFiles) {
+            final String fileName = file.getOriginalFilename();
+            final long fileSize = file.getSize();
+            final String contentType = file.getContentType();
+            
+            try {
+                final byte[] fileBytes = file.getBytes();
+                final String fileHash = FileUtils.calculateFileHash(fileBytes);
+                
+                CompletableFuture.supplyAsync(() -> {
+                    try {
+                        documentUploadSemaphore.acquire();
+                        log.info("[AI: 第一层并发: 开始处理文档]");
+                        long startTime = System.currentTimeMillis();
+                        processDocument(fileName, fileSize, contentType, fileBytes, fileHash);
+                        long processingTime = System.currentTimeMillis() - startTime;
+                        incrementCounter(completedKey);
+                        log.info("[AI: 文档处理完成: {}, 耗时: {}ms]", fileName, processingTime);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.error("[AI: 文档处理被中断: {}]", fileName, e);
+                        incrementCounter(failedKey);
+                    } catch (Exception e) {
+                        log.error("[AI: 文档处理失败: {}]", fileName, e);
+                        incrementCounter(failedKey);
+                    } finally {
+                        documentUploadSemaphore.release();
+                    }
+                    return null;
+                }, embeddingExecutorService);
+            } catch (IOException e) {
+                log.error("[AI: 读取文件失败: {}]", fileName, e);
+                incrementCounter(failedKey);
+            }
         }
-
-
     }
 
     @Transactional
-    public void processDocument(MultipartFile file) throws IOException {
+    public void processDocument(String fileName, long fileSize, String contentType, byte[] fileBytes, String fileHash) throws IOException {
         long startTime = System.currentTimeMillis();
-        log.info("[AI: 开始处理文档: {}]", file.getOriginalFilename());
+        log.info("[AI: 开始处理文档: {}]", fileName);
 
-        String fileHash = FileUtils.calculateFileHash(file);
-
-        documentRepository.findByFileHash(fileHash).ifPresent(doc -> {
-            log.info("[AI: 文档已存在，跳过处理: {}]", file.getOriginalFilename());
-            throw new IllegalArgumentException("文档已存在");
-        });
-
-        String fileName = file.getOriginalFilename();
         String fileType = FileUtils.getFileExtension(fileName);
         String objectName = fileHash + "/" + fileName;
 
         log.info("[AI: 开始上传文件到 MinIO: {}]", objectName);
-        minioService.uploadFile(objectName, file.getInputStream(), file.getSize(), file.getContentType());
+        minioService.uploadFile(objectName, new java.io.ByteArrayInputStream(fileBytes), fileSize, contentType);
 
         Document document = Document.builder()
                 .fileName(fileName)
                 .fileType(fileType)
                 .filePath(objectName)
-                .fileSize(file.getSize())
+                .fileSize(fileSize)
                 .fileHash(fileHash)
                 .chunkCount(0)
                 .uploadTime(LocalDateTime.now())
@@ -137,12 +155,8 @@ public class DocumentService {
 
     private void incrementCounter(String key) {
         try {
-            DefaultRedisScript<Long> script = new DefaultRedisScript<>(INCREMENT_COUNTER_LUA, Long.class);
-            Long result = redisTemplate.execute(script,
-                    java.util.Collections.singletonList(key),
-                    String.valueOf(1),
-                    String.valueOf(CacheConstants.DOCUMENT_UPLOAD_PROGRESS_TTL));
-            log.debug("[AI: 计数器增加: key={}, increment={}, result={}]", key, 1, result);
+            Long result = redisTemplate.opsForValue().increment(key, 1);
+            log.debug("[AI: 计数器增加: key={}, result={}]", key, result);
         } catch (Exception e) {
             log.error("[AI: 计数器增加失败: key={}]", key, e);
         }
@@ -210,9 +224,18 @@ public class DocumentService {
             final int chunkIndex = i;
             final String chunkContent = chunkContents.get(i);
             
-            CompletableFuture<DocumentChunk> future = CompletableFuture.supplyAsync(() ->
-                    processChunk(chunkContent, chunkIndex, document), embeddingExecutorService
-            );
+            CompletableFuture<DocumentChunk> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    chunkProcessingSemaphore.acquire();
+                    return processChunk(chunkContent, chunkIndex, document);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.error("[AI: 片段处理被中断: index={}]", chunkIndex, e);
+                    return null;
+                } finally {
+                    chunkProcessingSemaphore.release();
+                }
+            }, embeddingExecutorService);
             
             futures.add(future);
         }
@@ -294,8 +317,6 @@ public class DocumentService {
         return documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("文档不存在: " + documentId));
     }
-
-
 
     public BatchUploadProgress getBatchUploadProgress(String taskId) {
         try {
