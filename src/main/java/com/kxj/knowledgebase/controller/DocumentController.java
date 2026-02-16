@@ -55,17 +55,22 @@ public class DocumentController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Document> getDocument(@PathVariable Long id) {
+    public ApiResponse<String> getDocument(@PathVariable Long id) {
         try {
-            log.info("[AI: 收到获取文档详情请求: {}]", id);
-            Document document = documentService.getDocument(id);
-            return ApiResponse.success(document);
+            log.info("[AI: 收到获取文档URL请求: {}]", id);
+            com.kxj.knowledgebase.entity.Document document = documentService.getDocument(id);
+            
+            log.info("[AI: 开始生成MinIO预签名URL: {}]", document.getFilePath());
+            String presignedUrl = documentService.getMinioService().getPresignedUrl(document.getFilePath(), 3600);
+            
+            log.info("[AI: MinIO URL生成成功]");
+            return ApiResponse.success(presignedUrl);
         } catch (IllegalArgumentException e) {
             log.warn("[AI: 获取文档失败: {}]", e.getMessage());
-            return ApiResponse.error("获取文档详情失败: " + e.getMessage());
+            return ApiResponse.error("获取文档失败: " + e.getMessage());
         } catch (Exception e) {
-            log.error("[AI: 获取文档详情异常]", e);
-            return ApiResponse.error("获取文档详情失败: " + e.getMessage());
+            log.error("[AI: 获取文档URL异常]", e);
+            return ApiResponse.error("获取文档URL失败: " + e.getMessage());
         }
     }
 

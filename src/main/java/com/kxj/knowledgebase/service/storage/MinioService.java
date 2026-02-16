@@ -97,4 +97,22 @@ public class MinioService {
         }
     }
 
+    public String getPresignedUrl(String objectName, int expires) {
+        try {
+            log.info("[AI: 生成预签名URL: {}, 过期时间: {}秒]", objectName, expires);
+            
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(minioProperties.getBucketName())
+                            .object(objectName)
+                            .method(io.minio.http.Method.GET)
+                            .expiry(expires)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("[AI: 生成预签名URL失败: {}]", objectName, e);
+            throw new RuntimeException("生成预签名URL失败", e);
+        }
+    }
+
 }

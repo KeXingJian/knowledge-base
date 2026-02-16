@@ -11,6 +11,7 @@ import com.kxj.knowledgebase.service.storage.MinioService;
 import com.kxj.knowledgebase.service.storage.VectorStoreService;
 import com.kxj.knowledgebase.util.FileUtils;
 import com.kxj.knowledgebase.util.StringUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -42,6 +43,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
+    @Getter
     private final MinioService minioService;
     private final ExecutorService embeddingExecutorService;
     private final DocumentProcessingProperties documentProcessingProperties;
@@ -386,4 +388,5 @@ public class DocumentService {
             return null;
         }
     }
+
 }
