@@ -24,7 +24,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -47,20 +51,47 @@ public class DocumentService {
     
 
     @Transactional
-    public void processDocumentsBatch(List<MultipartFile> files) {
+    public String processDocumentsBatch(List<MultipartFile> files) {
 
-        // TODO 仅剔除一个请求已存在的文档,无法处理高并发情况
-        List<MultipartFile> uniqueFiles = files.stream()
-                .filter(file -> {
-                    try {
-                        final String fileHash = FileUtils.calculateFileHash(file);
-                        return documentRepository.findByFileHash(fileHash).isEmpty();
-                    } catch (IOException e) {
-                        log.error("[AI: 检查文档是否存在失败: {}]", file.getOriginalFilename(), e);
-                        return false;
-                    }
-                })
-                .toList();
+        log.info("[AI: 开始文档去重，原始文件数: {}]", files.size());
+        
+        Set<String> fileHashSet = new HashSet<>();
+        Map<String, MultipartFile> hashToFileMap = new HashMap<>();
+        
+        for (MultipartFile file : files) {
+            try {
+                String fileHash = FileUtils.calculateFileHash(file);
+                if (!fileHashSet.contains(fileHash)) {
+                    fileHashSet.add(fileHash);
+                    hashToFileMap.put(fileHash, file);
+                } else {
+                    log.info("[AI: 跳过重复文件: {}]", file.getOriginalFilename());
+                }
+            } catch (IOException e) {
+                log.error("[AI: 计算文件哈希失败: {}]", file.getOriginalFilename(), e);
+            }
+        }
+        
+        log.info("[AI: 第一层过滤完成，去重后文件数: {}]", fileHashSet.size());
+        
+
+        List<MultipartFile> uniqueFiles = new ArrayList<>();
+        if (!fileHashSet.isEmpty()) {
+            List<String> hashList = new ArrayList<>(fileHashSet);
+            List<Document> existingDocs = documentRepository.findByFileHashIn(hashList);
+            Set<String> existingHashes = existingDocs.stream()
+                    .map(Document::getFileHash)
+                    .collect(java.util.stream.Collectors.toSet());
+            log.info("[AI: 数据库已存在文档数: {}", existingHashes.size());
+
+            uniqueFiles = fileHashSet.stream()
+                    .filter(hash -> !existingHashes.contains(hash))
+                    .map(hashToFileMap::get)
+                    .toList();
+        }
+        
+
+        log.info("[AI: 第二层过滤完成，最终待处理文件数: {}]", uniqueFiles.size());
 
         log.info("[AI: 开始批量处理文档, 文档数量: {}]", uniqueFiles.size());
         String taskId = UUID.randomUUID().toString();
@@ -114,6 +145,8 @@ public class DocumentService {
                 incrementCounter(failedKey);
             }
         }
+
+        return taskId;
     }
 
     @Transactional

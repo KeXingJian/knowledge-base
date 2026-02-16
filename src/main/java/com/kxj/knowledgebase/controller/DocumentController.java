@@ -70,18 +70,17 @@ public class DocumentController {
     }
 
     @PostMapping("/batch-upload")
-    public ApiResponse<Void> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
+    public ApiResponse<String> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
         try {
             log.info("[AI: 收到批量文档上传请求, 文档数量: {}]", files.length);
             
             if (files.length == 0)
                 return ApiResponse.error("请选择要上传的文件");
             
-            if (files.length > 20)
-                return ApiResponse.error("单次最多支持上传20个文件");
+            if (files.length > 100)
+                return ApiResponse.error("单次最多支持上传100个文件");
 
-            documentService.processDocumentsBatch(List.of(files));
-            return ApiResponse.success(null);
+            return ApiResponse.success(documentService.processDocumentsBatch(List.of(files)));
         } catch (Exception e) {
             log.error("[AI: 批量上传异常]", e);
             return ApiResponse.error("批量上传失败: " + e.getMessage());

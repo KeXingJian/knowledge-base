@@ -1,9 +1,17 @@
 server:
   port: ${WEB_EXPOSE_PORT}
+  tomcat:
+    max-part-count: 100
 
 spring:
   application:
     name: knowledge-base
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 500MB
+      enabled: true
+      file-size-threshold: 0
   # 数据库配置
   datasource:
     url: jdbc:postgresql://${DATABASE_HOST_PORT}/${DATABASE_DB}
@@ -41,8 +49,7 @@ logging:
     com.kxj.knowledgebase: INFO
     org.springframework: INFO
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-    com.zaxxer.hikari: DEBUG
+
 
 # MinIO 配置
 minio:
