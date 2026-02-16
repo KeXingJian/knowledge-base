@@ -1,6 +1,9 @@
 package com.kxj.knowledgebase.controller;
 
 import com.kxj.knowledgebase.dto.ApiResponse;
+import com.kxj.knowledgebase.dto.BatchUploadProgress;
+import com.kxj.knowledgebase.dto.BatchUploadResponse;
+import com.kxj.knowledgebase.dto.DocumentUploadResult;
 import com.kxj.knowledgebase.entity.Document;
 import com.kxj.knowledgebase.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -19,24 +22,6 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
-
-    @PostMapping("/upload")
-    public ApiResponse<Document> uploadDocument(@RequestParam("file") MultipartFile file) {
-        try {
-            log.info("[AI: 收到文档上传请求: {}, 大小: {} bytes]", file.getOriginalFilename(), file.getSize());
-            Document document = documentService.processDocument(file);
-            return ApiResponse.success("文档上传成功", document);
-        } catch (IOException e) {
-            log.error("[AI: 文档上传失败]", e);
-            return ApiResponse.error("文档上传失败: " + e.getMessage());
-        } catch (IllegalArgumentException e) {
-            log.warn("[AI: 文档上传被拒绝: {}]", e.getMessage());
-            return ApiResponse.error(e.getMessage());
-        } catch (Exception e) {
-            log.error("[AI: 文档上传异常]", e);
-            return ApiResponse.error("文档上传异常: " + e.getMessage());
-        }
-    }
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteDocument(@PathVariable Long id) {
@@ -81,6 +66,57 @@ public class DocumentController {
         } catch (Exception e) {
             log.error("[AI: 获取文档详情异常]", e);
             return ApiResponse.error("获取文档详情失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/batch-upload")
+    public ApiResponse<BatchUploadResponse> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
+        try {
+            log.info("[AI: 收到批量文档上传请求, 文档数量: {}]", files.length);
+            
+            if (files.length == 0)
+                return ApiResponse.error("请选择要上传的文件");
+            
+            if (files.length > 20)
+                return ApiResponse.error("单次最多支持上传20个文件");
+
+            
+            long startTime = System.currentTimeMillis();
+            List<DocumentUploadResult> results = documentService.processDocumentsBatch(List.of(files));
+            long totalProcessingTime = System.currentTimeMillis() - startTime;
+            
+            int successCount = (int) results.stream().filter(DocumentUploadResult::isSuccess).count();
+            int failureCount = results.size() - successCount;
+            
+            BatchUploadResponse response = BatchUploadResponse.builder()
+                .taskId("")
+                .totalDocuments(results.size())
+                .successCount(successCount)
+                .failureCount(failureCount)
+                .totalProcessingTime(totalProcessingTime)
+                .results(results)
+                .build();
+            
+            log.info("[AI: 批量上传完成, 成功: {}, 失败: {}, 总耗时: {}ms]", successCount, failureCount, totalProcessingTime);
+            return ApiResponse.success("批量上传完成", response);
+        } catch (Exception e) {
+            log.error("[AI: 批量上传异常]", e);
+            return ApiResponse.error("批量上传失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/batch-upload/progress/{taskId}")
+    public ApiResponse<BatchUploadProgress> getBatchUploadProgress(@PathVariable String taskId) {
+        try {
+            log.info("[AI: 收到获取批量上传进度请求: {}]", taskId);
+            BatchUploadProgress progress = documentService.getBatchUploadProgress(taskId);
+            if (progress == null) {
+                return ApiResponse.error("未找到批量上传任务");
+            }
+            return ApiResponse.success(progress);
+        } catch (Exception e) {
+            log.error("[AI: 获取批量上传进度异常]", e);
+            return ApiResponse.error("获取批量上传进度失败: " + e.getMessage());
         }
     }
 }

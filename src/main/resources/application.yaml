@@ -68,7 +68,8 @@ document:
   processing:
     chunk-size: ${DOCUMENT_CHUNK_SIZE}
     batch-size: ${DOCUMENT_BATCH_SIZE}
-    enable-parallel-processing: ${DOCUMENT_ENABLE_PARALLEL}
+    max-concurrent-documents: ${MAX_CONCURRENT_DOCUMENTS:5}
+    max-concurrent-chunks: ${MAX_CONCURRENT_CHUNKS:20}
 
 # 检索配置
 retrieval:
