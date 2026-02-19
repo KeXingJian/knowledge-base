@@ -15,7 +15,7 @@ public class MinioConfig {
 
     @Bean
     public MinioClient minioClient() {
-        log.info("[AI: 初始化 MinIO 客户端，endpoint: {}]", minioProperties.getEndpoint());
+        log.info("[初始化 MinIO 客户端，endpoint: {}]", minioProperties.getEndpoint());
         return MinioClient.builder()
                 .endpoint(minioProperties.getEndpoint())
                 .credentials(minioProperties.getAccessKey(), minioProperties.getSecretKey())

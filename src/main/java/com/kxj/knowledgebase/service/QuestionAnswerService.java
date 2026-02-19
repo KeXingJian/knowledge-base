@@ -25,13 +25,13 @@ public class QuestionAnswerService {
     private final RedisTemplate<String, String> redisTemplate;
 
     public String answer(String question) {
-        log.info("[AI: 收到问题: {}]", question);
+        log.info("[收到问题: {}]", question);
 
         String cacheKey = CacheConstants.ANSWER_CACHE_PREFIX + question.hashCode();
         String cachedAnswer = redisTemplate.opsForValue().get(cacheKey);
         
         if (cachedAnswer != null) {
-            log.info("[AI: 从缓存获取答案]");
+            log.info("[从缓存获取答案]");
             return cachedAnswer;
         }
 
@@ -40,7 +40,7 @@ public class QuestionAnswerService {
         List<SearchResult> searchResults = hybridRetriever.retrieve(question, queryEmbedding, 3);
 
         if (searchResults.isEmpty()) {
-            log.warn("[AI: 未找到相关文档片段]");
+            log.warn("[未找到相关文档片段]");
             return "抱歉，我在知识库中没有找到与您问题相关的信息。";
         }
 
@@ -48,14 +48,14 @@ public class QuestionAnswerService {
             .map(result -> result.getChunk().getContent())
             .collect(Collectors.joining("\n\n"));
 
-        log.info("[AI: 找到 {} 个相关片段，开始生成回答]", searchResults.size());
+        log.info("[找到 {} 个相关片段，开始生成回答]", searchResults.size());
 
         String answer = ragService.answer(question, context);
 
         redisTemplate.opsForValue().set(cacheKey, answer, CacheConstants.ANSWER_CACHE_TTL, TimeUnit.SECONDS);
-        log.info("[AI: 答案已缓存，TTL: {}秒]", CacheConstants.ANSWER_CACHE_TTL);
+        log.info("[答案已缓存，TTL: {}秒]", CacheConstants.ANSWER_CACHE_TTL);
 
-        log.info("[AI: 问答完成]");
+        log.info("[问答完成]");
         return answer;
     }
 }

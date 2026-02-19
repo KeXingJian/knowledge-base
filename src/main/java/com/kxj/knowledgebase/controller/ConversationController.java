@@ -22,12 +22,12 @@ public class ConversationController {
 
     @PostMapping("/chat")
     public ApiResponse<ChatResponse> chat(@RequestBody ChatRequest request) {
-        log.info("[AI: 收到聊天请求，sessionId: {}]", request.getSessionId());
+        log.info("[收到聊天请求，sessionId: {}]", request.getSessionId());
 
         String sessionId = request.getSessionId();
         if (sessionId == null || sessionId.trim().isEmpty()) {
             sessionId = java.util.UUID.randomUUID().toString();
-            log.info("[AI: sessionId为空，生成新的sessionId: {}]", sessionId);
+            log.info("[sessionId为空，生成新的sessionId: {}]", sessionId);
         }
 
         String answer = conversationService.chat(sessionId, request.getQuestion());
@@ -40,21 +40,21 @@ public class ConversationController {
 
     @GetMapping("/{sessionId}")
     public ApiResponse<Conversation> getConversation(@PathVariable String sessionId) {
-        log.info("[AI: 获取对话，sessionId: {}]", sessionId);
+        log.info("[获取对话，sessionId: {}]", sessionId);
         Conversation conversation = conversationService.getConversation(sessionId);
         return ApiResponse.success(conversation);
     }
 
     @GetMapping("/list")
     public ApiResponse<List<Conversation>> getAllConversations() {
-        log.info("[AI: 获取所有对话列表]");
+        log.info("[获取所有对话列表]");
         List<Conversation> conversations = conversationService.getAllConversations();
         return ApiResponse.success(conversations);
     }
 
     @GetMapping("/messages/{sessionId}")
     public ApiResponse<List<Message>> getConversationMessages(@PathVariable String sessionId) {
-        log.info("[AI: 获取对话消息，sessionId: {}]", sessionId);
+        log.info("[获取对话消息，sessionId: {}]", sessionId);
         Conversation conversation = conversationService.getConversation(sessionId);
         if (conversation == null) {
             return ApiResponse.success(List.of());

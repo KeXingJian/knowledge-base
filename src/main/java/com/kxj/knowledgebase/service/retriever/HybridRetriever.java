@@ -23,22 +23,22 @@ public class HybridRetriever {
     private final RetrievalProperties retrievalProperties;
 
     public List<SearchResult> retrieve(String query, float[] queryEmbedding, int topK) {
-        log.info("[AI: 开始混合检索，query: {}, topK: {}]", query, topK);
+        log.info("[开始混合检索，query: {}, topK: {}]", query, topK);
 
         List<SearchResult> vectorResults = vectorSearch(queryEmbedding, topK);
         List<SearchResult> textResults = textSearch(query, topK);
 
-        log.info("[AI: 向量检索结果: {}]", vectorResults);
-        log.info("[AI: 全文检索结果: {}]", textResults);
+        log.info("[向量检索结果: {}]", vectorResults);
+        log.info("[全文检索结果: {}]", textResults);
 
         List<SearchResult> combinedResults = mergeAndRank(vectorResults, textResults, topK);
 
-        log.info("[AI: 混合检索完成，返回 {} 个结果]", combinedResults.size());
+        log.info("[混合检索完成，返回 {} 个结果]", combinedResults.size());
         return combinedResults;
     }
 
     private List<SearchResult> vectorSearch(float[] queryEmbedding, int topK) {
-        log.info("[AI: 执行向量检索]");
+        log.info("[执行向量检索]");
         String embeddingString = floatArrayToString(queryEmbedding);
         List<DocumentChunk> chunks = chunkRepository.findNearestNeighbors(embeddingString, topK);
         return chunks.stream()
@@ -52,13 +52,13 @@ public class HybridRetriever {
         } else if (retrievalProperties.isFallbackToKeywordSearch()) {
             return keywordSearch(query, topK);
         } else {
-            log.info("[AI: 文本检索已禁用]");
+            log.info("[文本检索已禁用]");
             return Collections.emptyList();
         }
     }
 
     private List<SearchResult> fullTextSearch(String query, int topK) {
-        log.info("[AI: 执行全文检索，query: {}]", query);
+        log.info("[执行全文检索，query: {}]", query);
         
         try {
             List<FullTextSearchResult> results = chunkRepository.fullTextSearch(query, topK);
@@ -70,7 +70,7 @@ public class HybridRetriever {
                 })
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            log.warn("[AI: 全文检索失败，降级为关键词检索]", e);
+            log.warn("[全文检索失败，降级为关键词检索]", e);
             if (retrievalProperties.isFallbackToKeywordSearch()) {
                 return keywordSearch(query, topK);
             } else {
@@ -80,7 +80,7 @@ public class HybridRetriever {
     }
 
     private List<SearchResult> keywordSearch(String query, int topK) {
-        log.info("[AI: 执行关键词检索（降级方案）]");
+        log.info("[执行关键词检索（降级方案）]");
         
         try {
             List<DocumentChunk> chunks = chunkRepository.findByContentLike(query, topK);
@@ -89,7 +89,7 @@ public class HybridRetriever {
                 .map(chunk -> new SearchResult(chunk, 1.0, "keyword"))
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            log.warn("[AI: 关键词检索失败]", e);
+            log.warn("[关键词检索失败]", e);
             return Collections.emptyList();
         }
     }
@@ -97,7 +97,7 @@ public class HybridRetriever {
     private List<SearchResult> mergeAndRank(List<SearchResult> vectorResults, 
                                            List<SearchResult> textResults, 
                                            int topK) {
-        log.info("[AI: 合并并重排序结果]");
+        log.info("[合并并重排序结果]");
         
         Map<Long, SearchResult> mergedMap = new HashMap<>();
 

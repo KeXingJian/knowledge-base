@@ -26,11 +26,11 @@ public class QuestionAnswerController {
                 return ApiResponse.error("问题不能为空");
             }
 
-            log.info("[AI: 收到问题请求: {}]", question);
+            log.info("[收到问题请求: {}]", question);
             String answer = questionAnswerService.answer(question);
             return ApiResponse.success(answer);
         } catch (Exception e) {
-            log.error("[AI: 问答失败]", e);
+            log.error("[问答失败]", e);
             return ApiResponse.error("问答失败: " + e.getMessage());
         }
     }

@@ -33,7 +33,7 @@ public class RAGService {
 
     @PostConstruct
     public void init() {
-        log.info("[AI: 初始化聊天模型，baseUrl: {}, modelName: {}, temperature: {}]", baseUrl, modelName, temperature);
+        log.info("[初始化聊天模型，baseUrl: {}, modelName: {}, temperature: {}]", baseUrl, modelName, temperature);
         this.chatModel = OllamaChatModel.builder()
                 .baseUrl(baseUrl)
                 .modelName(modelName)
@@ -43,26 +43,26 @@ public class RAGService {
     }
 
     public String answer(String question, String context) {
-        log.info("[AI: 开始RAG问答，question: {}]", question);
+        log.info("[开始RAG问答，question: {}]", question);
 
         String prompt = buildPrompt(question, context);
 
-        log.info("[AI: 调用大模型生成回答]");
+        log.info("[调用大模型生成回答]");
         String answer = chatModel.generate(prompt);
 
-        log.info("[AI: RAG问答完成，回答长度: {}]", answer.length());
+        log.info("[RAG问答完成，回答长度: {}]", answer.length());
         return answer;
     }
 
     public String answerWithContext(String question, String context, List<ChatMessage> history) {
-        log.info("[AI: 开始多轮RAG问答，question: {}, historySize: {}]", question, history.size());
+        log.info("[开始多轮RAG问答，question: {}, historySize: {}]", question, history.size());
 
         String prompt = buildPromptWithContext(question, context, history);
 
-        log.info("[AI: 调用大模型生成回答]");
+        log.info("[调用大模型生成回答]");
         String answer = chatModel.generate(prompt);
 
-        log.info("[AI: 多轮RAG问答完成，回答长度: {}]", answer.length());
+        log.info("[多轮RAG问答完成，回答长度: {}]", answer.length());
         return answer;
     }
 

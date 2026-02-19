@@ -21,25 +21,25 @@ public class ThreadPoolConfig {
 
     @Bean(destroyMethod = "shutdown")
     public ExecutorService embeddingExecutorService() {
-        log.info("[AI: 初始化向量化线程池，使用虚拟线程，最大并发片段数: {}]", maxConcurrentChunks);
+        log.info("[初始化向量化线程池，使用虚拟线程，最大并发片段数: {}]", maxConcurrentChunks);
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean(destroyMethod = "shutdown")
     public ExecutorService documentProcessingExecutorService() {
-        log.info("[AI: 初始化文档处理线程池，使用虚拟线程，最大并发文档数: {}]", maxConcurrentDocuments);
+        log.info("[初始化文档处理线程池，使用虚拟线程，最大并发文档数: {}]", maxConcurrentDocuments);
         return Executors.newVirtualThreadPerTaskExecutor();
     }
 
     @Bean
     public Semaphore documentUploadSemaphore() {
-        log.info("[AI: 初始化文档上传信号量，最大并发数: {}]", maxConcurrentDocuments);
+        log.info("[初始化文档上传信号量，最大并发数: {}]", maxConcurrentDocuments);
         return new Semaphore(maxConcurrentDocuments);
     }
 
     @Bean
     public Semaphore chunkProcessingSemaphore() {
-        log.info("[AI: 初始化片段处理信号量，最大并发数: {}]", maxConcurrentChunks);
+        log.info("[初始化片段处理信号量，最大并发数: {}]", maxConcurrentChunks);
         return new Semaphore(maxConcurrentChunks);
     }
 }

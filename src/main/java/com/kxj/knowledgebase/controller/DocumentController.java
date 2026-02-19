@@ -26,17 +26,17 @@ public class DocumentController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteDocument(@PathVariable Long id) {
         try {
-            log.info("[AI: 收到删除文档请求: {}]", id);
+            log.info("[收到删除文档请求: {}]", id);
             documentService.deleteDocument(id);
             return ApiResponse.success("文档删除成功", null);
         } catch (IllegalArgumentException e) {
-            log.warn("[AI: 删除文档失败: {}]", e.getMessage());
+            log.warn("[删除文档失败: {}]", e.getMessage());
             return ApiResponse.error(e.getMessage());
         } catch (RuntimeException e) {
-            log.error("[AI: 删除文档异常]", e);
+            log.error("[删除文档异常]", e);
             return ApiResponse.error(e.getMessage());
         } catch (Exception e) {
-            log.error("[AI: 删除文档未知异常]", e);
+            log.error("[删除文档未知异常]", e);
             return ApiResponse.error("删除文档失败: " + e.getMessage());
         }
     }
@@ -44,12 +44,12 @@ public class DocumentController {
     @GetMapping("/list")
     public ApiResponse<List<Document>> listDocuments() {
         try {
-            log.info("[AI: 收到获取文档列表请求]");
+            log.info("[收到获取文档列表请求]");
             List<Document> documents = documentService.listDocuments();
-            log.info("[AI: 返回 {} 个文档]", documents.size());
+            log.info("[返回 {} 个文档]", documents.size());
             return ApiResponse.success(documents);
         } catch (Exception e) {
-            log.error("[AI: 获取文档列表失败]", e);
+            log.error("[获取文档列表失败]", e);
             return ApiResponse.error("获取文档列表失败: " + e.getMessage());
         }
     }
@@ -57,19 +57,19 @@ public class DocumentController {
     @GetMapping("/{id}")
     public ApiResponse<String> getDocument(@PathVariable Long id) {
         try {
-            log.info("[AI: 收到获取文档URL请求: {}]", id);
+            log.info("[收到获取文档URL请求: {}]", id);
             com.kxj.knowledgebase.entity.Document document = documentService.getDocument(id);
             
-            log.info("[AI: 开始生成MinIO预签名URL: {}]", document.getFilePath());
+            log.info("[开始生成MinIO预签名URL: {}]", document.getFilePath());
             String presignedUrl = documentService.getMinioService().getPresignedUrl(document.getFilePath(), 3600);
             
-            log.info("[AI: MinIO URL生成成功]");
+            log.info("[MinIO URL生成成功]");
             return ApiResponse.success(presignedUrl);
         } catch (IllegalArgumentException e) {
-            log.warn("[AI: 获取文档失败: {}]", e.getMessage());
+            log.warn("[获取文档失败: {}]", e.getMessage());
             return ApiResponse.error("获取文档失败: " + e.getMessage());
         } catch (Exception e) {
-            log.error("[AI: 获取文档URL异常]", e);
+            log.error("[获取文档URL异常]", e);
             return ApiResponse.error("获取文档URL失败: " + e.getMessage());
         }
     }
@@ -77,7 +77,7 @@ public class DocumentController {
     @PostMapping("/batch-upload")
     public ApiResponse<String> batchUploadDocuments(@RequestParam("files") MultipartFile[] files) {
         try {
-            log.info("[AI: 收到批量文档上传请求, 文档数量: {}]", files.length);
+            log.info("[收到批量文档上传请求, 文档数量: {}]", files.length);
             
             if (files.length == 0)
                 return ApiResponse.error("请选择要上传的文件");
@@ -87,7 +87,7 @@ public class DocumentController {
 
             return ApiResponse.success(documentService.processDocumentsBatch(List.of(files)));
         } catch (Exception e) {
-            log.error("[AI: 批量上传异常]", e);
+            log.error("[批量上传异常]", e);
             return ApiResponse.error("批量上传失败: " + e.getMessage());
         }
     }
@@ -95,7 +95,7 @@ public class DocumentController {
     @GetMapping("/batch-upload/progress/{taskId}")
     public ApiResponse<BatchUploadProgress> getBatchUploadProgress(@PathVariable String taskId) {
         try {
-            log.info("[AI: 收到获取批量上传进度请求: {}]", taskId);
+            log.info("[收到获取批量上传进度请求: {}]", taskId);
             BatchUploadProgress progress = documentService.getBatchUploadProgress(taskId);
             if (progress == null) {
                 return ApiResponse.error("未找到批量上传任务");

@@ -55,7 +55,7 @@ public class DocumentService {
     @Transactional
     public String processDocumentsBatch(List<MultipartFile> files) {
 
-        log.info("[AI: 开始文档去重，原始文件数: {}]", files.size());
+        log.info("[开始文档去重，原始文件数: {}]", files.size());
         
         Set<String> fileHashSet = new HashSet<>();
         Map<String, MultipartFile> hashToFileMap = new HashMap<>();
@@ -67,14 +67,14 @@ public class DocumentService {
                     fileHashSet.add(fileHash);
                     hashToFileMap.put(fileHash, file);
                 } else {
-                    log.info("[AI: 跳过重复文件: {}]", file.getOriginalFilename());
+                    log.info("[跳过重复文件: {}]", file.getOriginalFilename());
                 }
             } catch (IOException e) {
-                log.error("[AI: 计算文件哈希失败: {}]", file.getOriginalFilename(), e);
+                log.error("[计算文件哈希失败: {}]", file.getOriginalFilename(), e);
             }
         }
         
-        log.info("[AI: 第一层过滤完成，去重后文件数: {}]", fileHashSet.size());
+        log.info("[第一层过滤完成，去重后文件数: {}]", fileHashSet.size());
         
 
         List<MultipartFile> uniqueFiles = new ArrayList<>();
@@ -84,7 +84,7 @@ public class DocumentService {
             Set<String> existingHashes = existingDocs.stream()
                     .map(Document::getFileHash)
                     .collect(java.util.stream.Collectors.toSet());
-            log.info("[AI: 数据库已存在文档数: {}", existingHashes.size());
+            log.info("[数据库已存在文档数: {}", existingHashes.size());
 
             uniqueFiles = fileHashSet.stream()
                     .filter(hash -> !existingHashes.contains(hash))
@@ -93,9 +93,9 @@ public class DocumentService {
         }
         
 
-        log.info("[AI: 第二层过滤完成，最终待处理文件数: {}]", uniqueFiles.size());
+        log.info("[第二层过滤完成，最终待处理文件数: {}]", uniqueFiles.size());
 
-        log.info("[AI: 开始批量处理文档, 文档数量: {}]", uniqueFiles.size());
+        log.info("[开始批量处理文档, 文档数量: {}]", uniqueFiles.size());
         String taskId = UUID.randomUUID().toString();
 
         String completedKey = CacheConstants.DOCUMENT_UPLOAD_PROGRESS_PREFIX + taskId + ":completed";
@@ -124,18 +124,18 @@ public class DocumentService {
                 CompletableFuture.supplyAsync(() -> {
                     try {
                         documentUploadSemaphore.acquire();
-                        log.info("[AI: 第一层并发: 开始处理文档]");
+                        log.info("[第一层并发: 开始处理文档]");
                         long startTime = System.currentTimeMillis();
                         processDocument(fileName, fileSize, contentType, fileBytes, fileHash);
                         long processingTime = System.currentTimeMillis() - startTime;
                         incrementCounter(completedKey);
-                        log.info("[AI: 文档处理完成: {}, 耗时: {}ms]", fileName, processingTime);
+                        log.info("[文档处理完成: {}, 耗时: {}ms]", fileName, processingTime);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        log.error("[AI: 文档处理被中断: {}]", fileName, e);
+                        log.error("[文档处理被中断: {}]", fileName, e);
                         incrementCounter(failedKey);
                     } catch (Exception e) {
-                        log.error("[AI: 文档处理失败: {}]", fileName, e);
+                        log.error("[文档处理失败: {}]", fileName, e);
                         incrementCounter(failedKey);
                     } finally {
                         documentUploadSemaphore.release();
@@ -143,7 +143,7 @@ public class DocumentService {
                     return null;
                 }, embeddingExecutorService);
             } catch (IOException e) {
-                log.error("[AI: 读取文件失败: {}]", fileName, e);
+                log.error("[读取文件失败: {}]", fileName, e);
                 incrementCounter(failedKey);
             }
         }
@@ -154,12 +154,12 @@ public class DocumentService {
     @Transactional
     public void processDocument(String fileName, long fileSize, String contentType, byte[] fileBytes, String fileHash) throws IOException {
         long startTime = System.currentTimeMillis();
-        log.info("[AI: 开始处理文档: {}]", fileName);
+        log.info("[开始处理文档: {}]", fileName);
 
         String fileType = FileUtils.getFileExtension(fileName);
         String objectName = fileHash + "/" + fileName;
 
-        log.info("[AI: 开始上传文件到 MinIO: {}]", objectName);
+        log.info("[开始上传文件到 MinIO: {}]", objectName);
         minioService.uploadFile(objectName, new java.io.ByteArrayInputStream(fileBytes), fileSize, contentType);
 
         Document document = Document.builder()
@@ -176,7 +176,7 @@ public class DocumentService {
 
         document = documentRepository.save(document);
 
-        log.info("[AI: 开始流式处理文档]");
+        log.info("[开始流式处理文档]");
         processDocumentInBatches(objectName, document);
 
         document.setProcessed(true);

@@ -37,7 +37,7 @@ public class ConversationService {
     private final ConversationProperties conversationProperties;
 
     public Conversation createConversation(String sessionId) {
-        log.info("[AI: 创建新对话，sessionId: {}]", sessionId);
+        log.info("[创建新对话，sessionId: {}]", sessionId);
 
         Conversation conversation = Conversation.builder()
                 .sessionId(sessionId)
@@ -49,31 +49,31 @@ public class ConversationService {
                 .build();
 
         conversation = conversationRepository.save(conversation);
-        log.info("[AI: 对话创建成功，conversationId: {}]", conversation.getId());
+        log.info("[对话创建成功，conversationId: {}]", conversation.getId());
 
         return conversation;
     }
 
     public Conversation getConversation(String sessionId) {
-        log.info("[AI: 获取对话，sessionId: {}]", sessionId);
+        log.info("[获取对话，sessionId: {}]", sessionId);
         return conversationRepository.findBySessionId(sessionId).orElse(null);
     }
 
     public List<Conversation> getAllConversations() {
-        log.info("[AI: 获取所有对话列表]");
+        log.info("[获取所有对话列表]");
         return conversationRepository.findAllByOrderByCreateTimeDesc();
     }
 
     @Transactional
     public void deleteConversation(String sessionId) {
-        log.info("[AI: 删除对话，sessionId: {}]", sessionId);
+        log.info("[删除对话，sessionId: {}]", sessionId);
         conversationRepository.deleteBySessionId(sessionId);
         redisTemplate.delete(CacheConstants.CONVERSATION_CACHE_PREFIX + sessionId);
     }
 
     @Transactional
     public void addMessage(Long conversationId, String role, String content, String context, String retrievedChunks) {
-        log.info("[AI: 添加消息，conversationId: {}, role: {}]", conversationId, role);
+        log.info("[添加消息，conversationId: {}, role: {}]", conversationId, role);
 
         Message message = Message.builder()
                 .conversationId(conversationId)
@@ -92,17 +92,17 @@ public class ConversationService {
             conversationRepository.save(conversation);
         });
 
-        log.info("[AI: 消息添加成功，messageId: {}]", message.getId());
+        log.info("[消息添加成功，messageId: {}]", message.getId());
     }
 
     public List<Message> getConversationMessages(Long conversationId) {
-        log.info("[AI: 获取对话消息，conversationId: {}]", conversationId);
+        log.info("[获取对话消息，conversationId: {}]", conversationId);
         return messageRepository.findByConversationIdOrderByCreateTimeAsc(conversationId);
     }
 
     @Transactional
     public String chat(String sessionId, String question) {
-        log.info("[AI: 收到对话请求，sessionId: {}, question: {}]", sessionId, question);
+        log.info("[收到对话请求，sessionId: {}, question: {}]", sessionId, question);
 
         Conversation conversation = conversationRepository.findBySessionId(sessionId)
                 .orElseGet(() -> createConversation(sessionId));
@@ -124,7 +124,7 @@ public class ConversationService {
         List<SearchResult> searchResults = hybridRetriever.retrieve(question, queryEmbedding, 3);
 
         if (searchResults.isEmpty()) {
-            log.warn("[AI: 未找到相关文档片段]");
+            log.warn("[未找到相关文档片段]");
             String answer = "抱歉，我在知识库中没有找到与您问题相关的信息。";
             addMessage(conversation.getId(), "assistant", answer, null, null);
             return answer;
@@ -142,7 +142,7 @@ public class ConversationService {
                         result.getSource()))
                 .collect(Collectors.joining(","));
 
-        log.info("[AI: 找到 {} 个相关片段，开始生成回答]", searchResults.size());
+        log.info("[找到 {} 个相关片段，开始生成回答]", searchResults.size());
 
         String answer = ragService.answerWithContext(question, context, history);
 

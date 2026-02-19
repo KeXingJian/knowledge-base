@@ -15,8 +15,8 @@ public class HikariConfig {
     public HikariConfig(DataSource dataSource) {
         if (dataSource instanceof HikariDataSource) {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
-            log.info("[AI: HikariCP 连接池配置]");
-            log.info("[AI: 最小空闲连接数: {}]", hikariDataSource.getMinimumIdle());
+            log.info("[HikariCP 连接池配置]");
+            log.info("[最小空闲连接数: {}]", hikariDataSource.getMinimumIdle());
             log.info("[AI: 最大连接数: {}]", hikariDataSource.getMaximumPoolSize());
             log.info("[AI: 连接超时时间: {}ms]", hikariDataSource.getConnectionTimeout());
             log.info("[AI: 空闲连接超时时间: {}ms]", hikariDataSource.getIdleTimeout());

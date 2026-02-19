@@ -19,16 +19,16 @@ public class VectorStoreService {
 
     @Transactional
     public void saveChunks(List<DocumentChunk> chunks) {
-        log.info("[AI: 开始保存 {} 个文档片段到向量数据库]", chunks.size());
+        log.info("[开始保存 {} 个文档片段到向量数据库]", chunks.size());
         chunkRepository.saveAll(chunks);
-        log.info("[AI: 文档片段保存完成]");
+        log.info("[文档片段保存完成]");
     }
 
     @Transactional
     public void deleteChunksByDocumentId(Long documentId) {
-        log.info("[AI: 开始删除文档 {} 的所有片段]", documentId);
+        log.info("[开始删除文档 {} 的所有片段]", documentId);
         chunkRepository.deleteByDocumentId(documentId);
-        log.info("[AI: 文档片段删除完成]");
+        log.info("[文档片段删除完成]");
     }
 
 }

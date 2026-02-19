@@ -20,7 +20,7 @@ public class MinioService {
     @PostConstruct
     public void init() {
         try {
-            log.info("[AI: 检查并创建 MinIO bucket: {}]", minioProperties.getBucketName());
+            log.info("[检查并创建 MinIO bucket: {}]", minioProperties.getBucketName());
             boolean bucketExists = minioClient.bucketExists(
                     BucketExistsArgs.builder()
                             .bucket(minioProperties.getBucketName())
@@ -33,19 +33,19 @@ public class MinioService {
                                 .bucket(minioProperties.getBucketName())
                                 .build()
                 );
-                log.info("[AI: MinIO bucket 创建成功: {}]", minioProperties.getBucketName());
+                log.info("[MinIO bucket 创建成功: {}]", minioProperties.getBucketName());
             } else {
-                log.info("[AI: MinIO bucket 已存在: {}]", minioProperties.getBucketName());
+                log.info("[MinIO bucket 已存在: {}]", minioProperties.getBucketName());
             }
         } catch (Exception e) {
-            log.error("[AI: 初始化 MinIO bucket 失败]", e);
+            log.error("[初始化 MinIO bucket 失败]", e);
             throw new RuntimeException("初始化 MinIO bucket 失败", e);
         }
     }
 
     public void uploadFile(String objectName, InputStream inputStream, long size, String contentType) {
         try {
-            log.info("[AI: 开始上传文件到 MinIO: {}, size: {}]", objectName, size);
+            log.info("[开始上传文件到 MinIO: {}, size: {}]", objectName, size);
             
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -56,16 +56,16 @@ public class MinioService {
                             .build()
             );
             
-            log.info("[AI: 文件上传成功: {}]", objectName);
+            log.info("[文件上传成功: {}]", objectName);
         } catch (Exception e) {
-            log.error("[AI: 文件上传失败: {}]", objectName, e);
+            log.error("[文件上传失败: {}]", objectName, e);
             throw new RuntimeException("文件上传失败", e);
         }
     }
 
     public InputStream downloadFile(String objectName) {
         try {
-            log.info("[AI: 开始从 MinIO 下载文件: {}]", objectName);
+            log.info("[开始从 MinIO 下载文件: {}]", objectName);
             
             return minioClient.getObject(
                     GetObjectArgs.builder()
@@ -74,14 +74,14 @@ public class MinioService {
                             .build()
             );
         } catch (Exception e) {
-            log.error("[AI: 文件下载失败: {}]", objectName, e);
+            log.error("[文件下载失败: {}]", objectName, e);
             throw new RuntimeException("文件下载失败", e);
         }
     }
 
     public void deleteFile(String objectName) {
         try {
-            log.info("[AI: 开始从 MinIO 删除文件: {}]", objectName);
+            log.info("[开始从 MinIO 删除文件: {}]", objectName);
             
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
@@ -90,16 +90,16 @@ public class MinioService {
                             .build()
             );
             
-            log.info("[AI: 文件删除成功: {}]", objectName);
+            log.info("[文件删除成功: {}]", objectName);
         } catch (Exception e) {
-            log.error("[AI: 文件删除失败: {}]", objectName, e);
+            log.error("[文件删除失败: {}]", objectName, e);
             throw new RuntimeException("文件删除失败", e);
         }
     }
 
     public String getPresignedUrl(String objectName, int expires) {
         try {
-            log.info("[AI: 生成预签名URL: {}, 过期时间: {}秒]", objectName, expires);
+            log.info("[生成预签名URL: {}, 过期时间: {}秒]", objectName, expires);
             
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
@@ -110,7 +110,7 @@ public class MinioService {
                             .build()
             );
         } catch (Exception e) {
-            log.error("[AI: 生成预签名URL失败: {}]", objectName, e);
+            log.error("[生成预签名URL失败: {}]", objectName, e);
             throw new RuntimeException("生成预签名URL失败", e);
         }
     }

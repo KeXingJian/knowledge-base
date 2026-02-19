@@ -27,7 +27,7 @@ public class EmbeddingService {
 
     @PostConstruct
     public void init() {
-        log.info("[AI: 初始化嵌入模型，baseUrl: {}, modelName: {}]", baseUrl, modelName);
+        log.info("[初始化嵌入模型，baseUrl: {}, modelName: {}]", baseUrl, modelName);
         this.embeddingModel = OllamaEmbeddingModel.builder()
                 .baseUrl(baseUrl)
                 .modelName(modelName)
@@ -36,10 +36,10 @@ public class EmbeddingService {
     }
 
     public float[] embed(String text) {
-        log.info("[AI: 开始向量化文本，长度: {}]", text.length());
+        log.info("[开始向量化文本，长度: {}]", text.length());
         Embedding embedding = embeddingModel.embed(text).content();
         float[] vector = embedding.vector();
-        log.info("[AI: 向量化完成，向量维度: {}]", vector.length);
+        log.info("[向量化完成，向量维度: {}]", vector.length);
         return vector;
     }
 
