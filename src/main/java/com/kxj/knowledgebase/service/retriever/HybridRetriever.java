@@ -28,6 +28,9 @@ public class HybridRetriever {
         List<SearchResult> vectorResults = vectorSearch(queryEmbedding, topK);
         List<SearchResult> textResults = textSearch(query, topK);
 
+        log.info("[AI: 向量检索结果: {}]", vectorResults);
+        log.info("[AI: 全文检索结果: {}]", textResults);
+
         List<SearchResult> combinedResults = mergeAndRank(vectorResults, textResults, topK);
 
         log.info("[AI: 混合检索完成，返回 {} 个结果]", combinedResults.size());

@@ -1,5 +1,6 @@
 package com.kxj.knowledgebase.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class Message {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "conversation_id", insertable = false, updatable = false)
+    @JsonIgnore
     private Conversation conversation;
 
     @Column(nullable = false, length = 20)

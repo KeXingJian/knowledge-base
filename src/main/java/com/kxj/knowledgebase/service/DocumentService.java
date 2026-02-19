@@ -211,8 +211,9 @@ public class DocumentService {
             int chunkSize = documentProcessingProperties.getChunkSize();
 
             while ((line = reader.readLine()) != null) {
-                chunkBuilder.append(line).append("\n");
-                currentLength += line.length() + 1;
+                String trimmedLine = line.strip();
+                chunkBuilder.append(trimmedLine).append("\n");
+                currentLength += trimmedLine.length() + 1;
 
                 if (currentLength >= chunkSize) {
                     chunkContents.add(chunkBuilder.toString());

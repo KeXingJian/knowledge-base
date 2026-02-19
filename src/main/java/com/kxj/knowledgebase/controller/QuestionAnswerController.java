@@ -16,6 +16,8 @@ public class QuestionAnswerController {
 
     private final QuestionAnswerService questionAnswerService;
 
+
+    //TODO 弃用
     @PostMapping("/ask")
     public ApiResponse<String> askQuestion(@RequestBody Map<String, String> request) {
         try {
