@@ -1,19 +1,18 @@
 services:
-  # Ollama服务 - 运行大语言模型和嵌入模型
   ollama:
     image: ollama/ollama:latest
     container_name: rag-ollama
     restart: unless-stopped
+    hostname: ollama
     ports:
       - ${OLLAMA_EXPOSE_PORT}:11434
     volumes:
-      - ${OLLAMA_STORE}:/root/.ollama  # 持久化模型数据
+      - ${OLLAMA_STORE}:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
-      - OLLAMA_KEEP_ALIVE=24h  # 模型保持加载的时间
+      - OLLAMA_KEEP_ALIVE=24h
     networks:
       - rag-network
-    # 初始化脚本：启动时自动下载需要的模型
     entrypoint: |
       sh -c "
       echo 'Starting Ollama...'
@@ -27,11 +26,11 @@ services:
       tail -f /dev/null
       "
 
-  # PostgreSQL + PGVector - 向量数据库
   postgres:
     image: pgvector/pgvector:pg16
     container_name: rag-postgres
     restart: unless-stopped
+    hostname: postgres
     ports:
       - ${DATABASE_EXPOSE_PORT}:5432
     environment:
@@ -43,7 +42,7 @@ services:
     networks:
       - rag-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U raguser -d vectordb" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,12 +56,15 @@ services:
     volumes:
       - ${REDIS_STORE}:/data
     restart: always
+    networks:
+      - rag-network
 
   # MinIO - 对象存储服务
   minio:
     image: minio/minio:latest
     container_name: minio
     restart: unless-stopped
+    hostname: minio
     ports:
       - ${MINIO_EXPOSE_PORT}:9000
       - ${MINIO_CONSOLE_PORT}:9001
@@ -123,16 +125,22 @@ services:
       RETRIEVAL_ENABLE_FULLTEXT: ${RETRIEVAL_ENABLE_FULLTEXT}
       RETRIEVAL_FALLBACK_KEYWORD: ${RETRIEVAL_FALLBACK_KEYWORD}
     depends_on:
-      - postgres
-      - redis
-      - ollama
-      - minio
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+      minio:
+        condition: service_healthy
     ports:
       - ${WEB_EXPOSE_PORT}:8080
     extra_hosts:
       - host.docker.internal:host-gateway
     volumes:
       - ${LOG_PATH}:/var/log
+    networks:
+      - rag-network
 
 # 网络配置
 networks:
