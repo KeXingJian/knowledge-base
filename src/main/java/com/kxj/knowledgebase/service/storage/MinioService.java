@@ -101,7 +101,16 @@ public class MinioService {
         try {
             log.info("[生成预签名URL: {}, 过期时间: {}秒]", objectName, expires);
             
-            return minioClient.getPresignedObjectUrl(
+            MinioClient client = minioClient;
+            if (minioProperties.getPublicEndpoint() != null) {
+                log.info("[使用公网地址生成预签名URL: {}]", minioProperties.getPublicEndpoint());
+                client = MinioClient.builder()
+                        .endpoint(minioProperties.getPublicEndpoint())
+                        .credentials(minioProperties.getAccessKey(), minioProperties.getSecretKey())
+                        .build();
+            }
+            
+            return client.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(minioProperties.getBucketName())
                             .object(objectName)

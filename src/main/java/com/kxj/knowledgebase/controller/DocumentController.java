@@ -59,10 +59,10 @@ public class DocumentController {
         try {
             log.info("[收到获取文档URL请求: {}]", id);
             com.kxj.knowledgebase.entity.Document document = documentService.getDocument(id);
-            
+
             log.info("[开始生成MinIO预签名URL: {}]", document.getFilePath());
             String presignedUrl = documentService.getMinioService().getPresignedUrl(document.getFilePath(), 3600);
-            
+
             log.info("[MinIO URL生成成功]");
             return ApiResponse.success(presignedUrl);
         } catch (IllegalArgumentException e) {
