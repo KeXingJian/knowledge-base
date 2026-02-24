@@ -17,13 +17,13 @@ public class HikariConfig {
             HikariDataSource hikariDataSource = (HikariDataSource) dataSource;
             log.info("[HikariCP 连接池配置]");
             log.info("[最小空闲连接数: {}]", hikariDataSource.getMinimumIdle());
-            log.info("[AI: 最大连接数: {}]", hikariDataSource.getMaximumPoolSize());
-            log.info("[AI: 连接超时时间: {}ms]", hikariDataSource.getConnectionTimeout());
-            log.info("[AI: 空闲连接超时时间: {}ms]", hikariDataSource.getIdleTimeout());
-            log.info("[AI: 最大生命周期: {}ms]", hikariDataSource.getMaxLifetime());
-            log.info("[AI: 连接池名称: {}]", hikariDataSource.getPoolName());
+            log.info("[最大连接数: {}]", hikariDataSource.getMaximumPoolSize());
+            log.info("[连接超时时间: {}ms]", hikariDataSource.getConnectionTimeout());
+            log.info("[空闲连接超时时间: {}ms]", hikariDataSource.getIdleTimeout());
+            log.info("[最大生命周期: {}ms]", hikariDataSource.getMaxLifetime());
+            log.info("[连接池名称: {}]", hikariDataSource.getPoolName());
         } else {
-            log.warn("[AI: 当前数据源不是 HikariDataSource: {}]", dataSource.getClass().getName());
+            log.warn("[当前数据源不是 HikariDataSource: {}]", dataSource.getClass().getName());
         }
     }
 }

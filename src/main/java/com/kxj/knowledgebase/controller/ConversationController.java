@@ -65,7 +65,7 @@ public class ConversationController {
 
     @DeleteMapping("/delete/{sessionId}")
     public ApiResponse<String> deleteConversation(@PathVariable String sessionId) {
-        log.info("[AI: 删除对话，sessionId: {}]", sessionId);
+        log.info("[删除对话，sessionId: {}]", sessionId);
         conversationService.deleteConversation(sessionId);
         return ApiResponse.success("删除对话成功");
     }

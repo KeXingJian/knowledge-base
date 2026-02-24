@@ -2,10 +2,10 @@ package com.kxj.knowledgebase.controller;
 
 import com.kxj.knowledgebase.dto.ApiResponse;
 import com.kxj.knowledgebase.dto.BatchUploadProgress;
-import com.kxj.knowledgebase.dto.BatchUploadResponse;
-import com.kxj.knowledgebase.dto.DocumentUploadResult;
+
 import com.kxj.knowledgebase.entity.Document;
-import com.kxj.knowledgebase.service.DocumentService;
+
+import com.kxj.knowledgebase.service.DocumentServiceOptimized;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DocumentController {
 
-    private final DocumentService documentService;
+    private final DocumentServiceOptimized documentService;
 
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteDocument(@PathVariable Long id) {
@@ -102,7 +102,7 @@ public class DocumentController {
             }
             return ApiResponse.success(progress);
         } catch (Exception e) {
-            log.error("[AI: 获取批量上传进度异常]", e);
+            log.error("[获取批量上传进度异常]", e);
             return ApiResponse.error("获取批量上传进度失败: " + e.getMessage());
         }
     }

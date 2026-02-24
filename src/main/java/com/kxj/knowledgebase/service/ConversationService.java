@@ -152,14 +152,14 @@ public class ConversationService {
             String title = generateTitle(question);
             conversation.setTitle(title);
             conversationRepository.save(conversation);
-            log.info("[AI: 对话标题已更新: {}]", title);
+            log.info("[对话标题已更新: {}]", title);
         }
 
         String cacheKey = CacheConstants.CONVERSATION_CACHE_PREFIX + sessionId;
         redisTemplate.opsForValue().set(cacheKey, conversation.getId().toString(), 
                 CacheConstants.CONVERSATION_CACHE_TTL, TimeUnit.SECONDS);
 
-        log.info("[AI: 对话完成]");
+        log.info("[对话完成]");
         return answer;
     }
 
