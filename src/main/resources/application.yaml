@@ -38,6 +38,10 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
+  web:
+    resources:
+      # 静态资源位置
+      static-locations: classpath:/static/
 
 # 日志配置
 logging:
@@ -88,3 +92,20 @@ retrieval:
     text-weight: ${RETRIEVAL_TEXT_WEIGHT}
     enable-fulltext-search: ${RETRIEVAL_ENABLE_FULLTEXT}
     fallback-to-keyword-search: ${RETRIEVAL_FALLBACK_KEYWORD}
+
+# 语义缓存配置
+cache:
+  semantic:
+    enabled: ${CACHE_SEMANTIC_ENABLED:true}
+    similarity-threshold: ${CACHE_SIMILARITY_THRESHOLD:0.92}
+    semantic-ttl: ${CACHE_SEMANTIC_TTL:2h}
+    exact-ttl: ${CACHE_EXACT_TTL:1h}
+    local-max-size: ${CACHE_LOCAL_MAX_SIZE:10000}
+    local-expire-after-write: ${CACHE_LOCAL_EXPIRE:10m}
+    embedding-ttl: ${CACHE_EMBEDDING_TTL:7d}
+    max-candidate-scan: ${CACHE_MAX_CANDIDATE_SCAN:100}
+  synonym:
+    enabled: ${CACHE_SYNONYM_ENABLED:true}
+    # 自定义同义词映射（可选），格式：口语化表达: 标准表达
+    # 例如：mappings: "咋用:怎么用,啥:什么"
+    mappings: ${CACHE_SYNONYM_MAPPINGS:}

@@ -6,6 +6,7 @@ import com.kxj.knowledgebase.dto.BatchUploadProgress;
 import com.kxj.knowledgebase.entity.Document;
 import com.kxj.knowledgebase.entity.DocumentChunk;
 import com.kxj.knowledgebase.repository.DocumentRepository;
+import com.kxj.knowledgebase.service.cache.CacheInvalidationService;
 import com.kxj.knowledgebase.service.embedding.EmbeddingService;
 import com.kxj.knowledgebase.service.storage.MinioService;
 import com.kxj.knowledgebase.service.storage.VectorStoreService;
@@ -50,6 +51,7 @@ public class DocumentServiceOptimized {
     private final DocumentProcessingProperties documentProcessingProperties;
     private final RedisTemplate<String, Object> redisTemplate;
     private final Semaphore globalSemaphore;
+    private final CacheInvalidationService cacheInvalidationService;
 
     @Transactional
     public String processDocumentsBatch(List<MultipartFile> files) {
@@ -153,6 +155,8 @@ public class DocumentServiceOptimized {
             } else {
                 log.info("[批量处理全部完成]");
             }
+            // 清除问答缓存，确保新上传的文档能被检索到
+            cacheInvalidationService.onBatchProcessingCompleted();
         });
 
         return taskId;
@@ -326,6 +330,9 @@ public class DocumentServiceOptimized {
 
         documentRepository.deleteById(documentId);
         log.info("[文档删除完成: {}]", documentId);
+
+        // 清除问答缓存，避免返回已删除文档的内容
+        cacheInvalidationService.onDocumentDeleted();
     }
 
     public List<Document> listDocuments() {

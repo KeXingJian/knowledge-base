@@ -2,15 +2,16 @@ package com.kxj.knowledgebase.service;
 
 import com.kxj.knowledgebase.config.ConversationProperties;
 import com.kxj.knowledgebase.constants.CacheConstants;
+import com.kxj.knowledgebase.dto.ChatMessage;
+import com.kxj.knowledgebase.dto.SearchResult;
 import com.kxj.knowledgebase.entity.Conversation;
 import com.kxj.knowledgebase.entity.Message;
 import com.kxj.knowledgebase.repository.ConversationRepository;
 import com.kxj.knowledgebase.repository.MessageRepository;
-import com.kxj.knowledgebase.service.embedding.EmbeddingService;
-import com.kxj.knowledgebase.dto.ChatMessage;
+import com.kxj.knowledgebase.service.cache.SemanticCacheService;
+import com.kxj.knowledgebase.service.embedding.CachedEmbeddingService;
 import com.kxj.knowledgebase.service.rag.RAGService;
 import com.kxj.knowledgebase.service.retriever.HybridRetriever;
-import com.kxj.knowledgebase.dto.SearchResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -32,7 +33,8 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final HybridRetriever hybridRetriever;
     private final RAGService ragService;
-    private final EmbeddingService embeddingService;
+    private final CachedEmbeddingService cachedEmbeddingService;
+    private final SemanticCacheService semanticCacheService;
     private final RedisTemplate<String, String> redisTemplate;
     private final ConversationProperties conversationProperties;
 
@@ -119,7 +121,17 @@ public class ConversationService {
                         .build())
                 .collect(Collectors.toList());
 
-        float[] queryEmbedding = embeddingService.embed(question);
+        // 获取 embedding（带多级缓存）
+        float[] queryEmbedding = cachedEmbeddingService.embed(question);
+
+        // 尝试语义缓存（注意：对话模式通常需要结合上下文，缓存策略更保守）
+        String cachedAnswer = semanticCacheService.get(question, queryEmbedding);
+        if (cachedAnswer != null && history.isEmpty()) {
+            // 只有在没有历史上下文时才使用缓存（避免上下文丢失）
+            log.info("[对话语义缓存命中]");
+            addMessage(conversation.getId(), "assistant", cachedAnswer, null, null);
+            return cachedAnswer;
+        }
 
         List<SearchResult> searchResults = hybridRetriever.retrieve(question, queryEmbedding, 3);
 
@@ -158,6 +170,14 @@ public class ConversationService {
         String cacheKey = CacheConstants.CONVERSATION_CACHE_PREFIX + sessionId;
         redisTemplate.opsForValue().set(cacheKey, conversation.getId().toString(), 
                 CacheConstants.CONVERSATION_CACHE_TTL, TimeUnit.SECONDS);
+
+
+        // 5. 存入语义缓存（供后续相似问题使用）
+        if(history.isEmpty()){
+            semanticCacheService.put(question, queryEmbedding, answer);
+            log.info("[答案已存入语义缓存]");
+        }
+
 
         log.info("[对话完成]");
         return answer;
