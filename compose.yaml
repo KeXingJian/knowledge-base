@@ -144,15 +144,14 @@ services:
       - rag-network
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     container_name: nginx
     restart: unless-stopped
     hostname: nginx
     ports:
       - ${NGINX_EXPOSE_PORT}:80
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ui:/usr/share/nginx/html:ro
     depends_on:
       - web
     networks:

@@ -34,3 +34,6 @@ build/
 
 data
 uploads
+
+# Frontend build artifacts (now built via Docker multi-stage)
+ui/
