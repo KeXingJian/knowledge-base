@@ -8,12 +8,19 @@ import com.kxj.knowledgebase.entity.Document;
 import com.kxj.knowledgebase.service.DocumentServiceOptimized;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -54,24 +61,47 @@ public class DocumentController {
         }
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<String> getDocument(@PathVariable Long id) {
-        try {
-            log.info("[收到获取文档URL请求: {}]", id);
-            com.kxj.knowledgebase.entity.Document document = documentService.getDocument(id);
+    private static final Map<String, String> MIME_TYPES = Map.ofEntries(
+            Map.entry("txt",  "text/plain; charset=UTF-8"),
+            Map.entry("md",   "text/plain; charset=UTF-8"),
+            Map.entry("pdf",  "application/pdf"),
+            Map.entry("png",  "image/png"),
+            Map.entry("jpg",  "image/jpeg"),
+            Map.entry("jpeg", "image/jpeg"),
+            Map.entry("gif",  "image/gif"),
+            Map.entry("webp", "image/webp"),
+            Map.entry("svg",  "image/svg+xml")
+    );
 
-            log.info("[开始生成MinIO预签名URL: {}]", document.getFilePath());
-            String presignedUrl = documentService.getMinioService().getPresignedUrl(document.getFilePath(), 3600);
+    @GetMapping("/{id}/content")
+    public ResponseEntity<StreamingResponseBody> getDocumentContent(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean download) {
+        log.info("[收到获取文档内容请求: id={}, download={}]", id, download);
+        Document document = documentService.getDocument(id);
 
-            log.info("[MinIO URL生成成功]");
-            return ApiResponse.success(presignedUrl);
-        } catch (IllegalArgumentException e) {
-            log.warn("[获取文档失败: {}]", e.getMessage());
-            return ApiResponse.error("获取文档失败: " + e.getMessage());
-        } catch (Exception e) {
-            log.error("[获取文档URL异常]", e);
-            return ApiResponse.error("获取文档URL失败: " + e.getMessage());
-        }
+        String mimeType = MIME_TYPES.getOrDefault(
+                document.getFileType().toLowerCase(),
+                "application/octet-stream"
+        );
+        String encodedName = URLEncoder.encode(document.getFileName(), StandardCharsets.UTF_8)
+                .replace("+", "%20");
+        String disposition = (download ? "attachment" : "inline") + "; filename*=UTF-8''" + encodedName;
+
+        StreamingResponseBody body = outputStream -> {
+            try (InputStream inputStream = documentService.getMinioService().downloadFile(document.getFilePath())) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(mimeType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .body(body);
     }
 
     @PostMapping("/batch-upload")

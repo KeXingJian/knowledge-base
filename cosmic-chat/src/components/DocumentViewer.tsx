@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, FileText } from "lucide-react";
+import { X, FileText, Download } from "lucide-react";
 import { type Document } from "@/lib/api";
 import { api } from "@/lib/api";
 
@@ -8,56 +8,108 @@ interface DocumentViewerProps {
   onClose: () => void;
 }
 
+const TEXT_TYPES = new Set(["txt", "md", "csv", "log", "json", "xml", "yaml", "yml"]);
+const IMAGE_TYPES = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg"]);
+const PDF_TYPES = new Set(["pdf"]);
+
 const DocumentViewer = ({ document, onClose }: DocumentViewerProps) => {
-  const [content, setContent] = useState<string>("");
+  const [textContent, setTextContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fileType = document?.fileType?.toLowerCase() ?? "";
+  const contentUrl = document ? api.documents.getContentUrl(document.id) : "";
+  const downloadUrl = document ? api.documents.getContentUrl(document.id, true) : "";
+
   useEffect(() => {
-    if (document && document.fileType === 'txt') {
-      loadDocumentContent();
+    if (!document) return;
+    setTextContent("");
+    setError(null);
+
+    if (TEXT_TYPES.has(fileType)) {
+      setLoading(true);
+      fetch(contentUrl)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
+        .then(setTextContent)
+        .catch(err => setError(`加载失败: ${err.message}`))
+        .finally(() => setLoading(false));
     }
   }, [document]);
 
-  const loadDocumentContent = async () => {
-    if (!document) return;
+  if (!document) return null;
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      console.log('[开始加载文档]', { fileName: document.fileName, fileType: document.fileType, id: document.id });
-
-      const minioUrl = await api.documents.getDetail(document.id);
-      console.log('[获取到MinIO URL]', minioUrl);
-
-      const response = await fetch(minioUrl);
-      if (!response.ok) {
-        throw new Error(`加载文档失败: ${response.status} ${response.statusText}`);
-      }
-
-      const text = await response.text();
-      console.log('[文档内容长度]', text.length);
-      console.log('[文档内容前100字符]', text.substring(0, 100));
-
-      if (text.includes('<!doctype html>') || text.includes('<html')) {
-        console.error('[文档内容是HTML]', text.substring(0, 200));
-        throw new Error('文档地址返回了HTML页面，可能是MinIO配置问题或文件不存在');
-      }
-
-      setContent(text);
-      console.log('[加载文档内容成功]', document.fileName);
-    } catch (err) {
-      console.error('[加载文档内容失败]', err);
-      setError(`加载文档内容失败: ${err instanceof Error ? err.message : '未知错误'}`);
-    } finally {
-      setLoading(false);
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            {[0, 0.2, 0.4].map((delay, i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-primary animate-pulse"
+                style={{ animationDelay: `${delay}s` }}
+              />
+            ))}
+          </div>
+        </div>
+      );
     }
-  };
 
-  if (!document) {
-    return null;
-  }
+    if (error) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-destructive">{error}</p>
+        </div>
+      );
+    }
+
+    if (TEXT_TYPES.has(fileType)) {
+      return (
+        <pre className="whitespace-pre-wrap text-sm text-foreground leading-relaxed font-mono">
+          {textContent}
+        </pre>
+      );
+    }
+
+    if (PDF_TYPES.has(fileType)) {
+      return (
+        <iframe
+          src={contentUrl}
+          className="w-full h-full rounded-lg border-0"
+          title={document.fileName}
+        />
+      );
+    }
+
+    if (IMAGE_TYPES.has(fileType)) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <img
+            src={contentUrl}
+            alt={document.fileName}
+            className="max-w-full max-h-full object-contain rounded-lg"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <FileText className="w-16 h-16 text-muted-foreground/40" />
+        <p className="text-muted-foreground">暂不支持在线预览此文件类型</p>
+        <a
+          href={downloadUrl}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          下载文件
+        </a>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -75,43 +127,32 @@ const DocumentViewer = ({ document, onClose }: DocumentViewerProps) => {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={downloadUrl}
+              title="下载"
+              className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <Download className="w-5 h-5" />
+            </a>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-destructive">{error}</p>
-            </div>
-          ) : document.fileType === 'txt' ? (
-            <pre className="whitespace-pre-wrap text-sm text-foreground leading-relaxed font-mono">
-              {content}
-            </pre>
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">暂不支持查看此文件类型</p>
-            </div>
-          )}
+        <div className="flex-1 overflow-auto p-6">
+          {renderContent()}
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-border bg-muted/30">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>上传时间: {new Date(document.uploadTime).toLocaleString('zh-CN')}</span>
+            <span>上传时间: {new Date(document.uploadTime).toLocaleString("zh-CN")}</span>
             <span>分片数量: {document.chunkCount}</span>
           </div>
         </div>

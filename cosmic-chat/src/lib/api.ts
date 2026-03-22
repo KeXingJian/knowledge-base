@@ -136,8 +136,8 @@ export const api = {
     getList: () =>
       request<Document[]>('/documents/list'),
 
-    getDetail: (id: number) =>
-      request<string>(`/documents/${id}`),
+    getContentUrl: (id: number, download = false) =>
+      `${API_BASE_URL}/documents/${id}/content${download ? '?download=true' : ''}`,
 
     delete: (id: number) =>
       request<string>(`/documents/${id}`, {
