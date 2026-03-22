@@ -1,0 +1,205 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 254 100% 4%;
+    --foreground: 260 30% 90%;
+
+    --card: 268 73% 5%;
+    --card-foreground: 260 30% 90%;
+
+    --popover: 264 55% 10%;
+    --popover-foreground: 260 30% 90%;
+
+    --primary: 258 100% 74%;
+    --primary-foreground: 260 100% 98%;
+
+    --secondary: 264 48% 20%;
+    --secondary-foreground: 260 30% 90%;
+
+    --muted: 264 40% 14%;
+    --muted-foreground: 210 40% 98%;
+
+    --accent: 265 90% 65%;
+    --accent-foreground: 260 100% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 264 40% 18%;
+    --input: 264 40% 14%;
+    --ring: 258 100% 74%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --space-black: 254 100% 4%;
+    --sidebar-bg: 268 73% 5%;
+    --ai-bubble-from: 270 90% 60%;
+    --ai-bubble-to: 280 95% 55%;
+    --user-bubble: 265 90% 65%;
+    --glow-purple: 270 100% 65%;
+    --star-color: 258 100% 80%;
+
+    --sidebar-background: 268 73% 5%;
+    --sidebar-foreground: 260 20% 65%;
+    --sidebar-primary: 258 100% 74%;
+    --sidebar-primary-foreground: 260 100% 98%;
+    --sidebar-accent: 264 40% 14%;
+    --sidebar-accent-foreground: 260 30% 90%;
+    --sidebar-border: 264 40% 18%;
+    --sidebar-ring: 258 100% 74%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--space-black));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--secondary));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--accent));
+  }
+}
+
+@layer utilities {
+
+  /* Glow line */
+  .glow-line {
+    height: 1px;
+    background: hsl(var(--glow-purple));
+    box-shadow: 0 0 5px hsl(var(--glow-purple)), 0 0 10px hsl(var(--glow-purple) / 0.3);
+  }
+
+  /* Star particles + galaxy */
+  .starfield {
+    position: relative;
+    overflow: hidden;
+
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .starfield::before,
+  .starfield::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .starfield::before {
+    /* Add a subtle overlay to enhance text readability */
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5));
+  }
+
+  .starfield::after {
+    animation: twinkle 4s ease-in-out infinite alternate;
+    background-image:
+      /* Dense star dots */
+      radial-gradient(1px 1px at 10% 20%, hsl(var(--star-color) / 0.7) 50%, transparent 50%),
+      radial-gradient(1px 1px at 30% 60%, hsl(var(--star-color) / 0.5) 50%, transparent 50%),
+      radial-gradient(1.2px 1.2px at 50% 10%, hsl(var(--star-color) / 0.6) 50%, transparent 50%),
+      radial-gradient(1px 1px at 70% 80%, hsl(var(--star-color) / 0.4) 50%, transparent 50%),
+      radial-gradient(1px 1px at 90% 40%, hsl(var(--star-color) / 0.7) 50%, transparent 50%),
+      radial-gradient(1.5px 1.5px at 15% 85%, hsl(var(--star-color) / 0.5) 50%, transparent 50%),
+      radial-gradient(1px 1px at 45% 35%, hsl(var(--star-color) / 0.4) 50%, transparent 50%),
+      radial-gradient(1px 1px at 80% 15%, hsl(var(--star-color) / 0.5) 50%, transparent 50%),
+      radial-gradient(1.5px 1.5px at 25% 45%, hsl(var(--star-color) / 0.6) 50%, transparent 50%),
+      radial-gradient(1px 1px at 65% 55%, hsl(var(--star-color) / 0.4) 50%, transparent 50%),
+      radial-gradient(0.8px 0.8px at 5% 50%, hsl(var(--star-color) / 0.3) 50%, transparent 50%),
+      radial-gradient(0.8px 0.8px at 55% 75%, hsl(var(--star-color) / 0.3) 50%, transparent 50%),
+      radial-gradient(1px 1px at 35% 90%, hsl(var(--star-color) / 0.5) 50%, transparent 50%),
+      radial-gradient(0.8px 0.8px at 75% 5%, hsl(var(--star-color) / 0.4) 50%, transparent 50%),
+      radial-gradient(1.2px 1.2px at 95% 70%, hsl(var(--star-color) / 0.6) 50%, transparent 50%);
+  }
+
+  /* Input glow on focus */
+  .input-glow:focus-within {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3), 0 0 15px hsl(var(--primary) / 0.15);
+  }
+
+  /* Hover glow for buttons */
+  .btn-glow:hover {
+    box-shadow: 0 0 15px hsl(var(--primary) / 0.4), 0 0 30px hsl(var(--primary) / 0.2);
+  }
+
+  /* Gradient hover effect */
+  .hover-gradient {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .hover-gradient::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        transparent,
+        hsl(var(--primary) / 0.2),
+        transparent);
+    transition: left 0.5s ease;
+  }
+
+  .hover-gradient:hover::before {
+    left: 100%;
+  }
+
+  .hover-gradient:hover {
+    background: linear-gradient(135deg,
+        hsl(var(--secondary)),
+        hsl(var(--accent) / 0.3));
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px hsl(var(--primary) / 0.3);
+  }
+}
+
+@keyframes twinkle {
+  0% {
+    opacity: 0.3;
+  }
+
+  100% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
