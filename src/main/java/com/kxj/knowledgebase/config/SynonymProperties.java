@@ -1,8 +1,11 @@
 package com.kxj.knowledgebase.config;
 
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +13,7 @@ import java.util.Map;
 /**
  * 同义词配置属性
  */
+@Slf4j
 @Data
 @Component
 @ConfigurationProperties(prefix = "cache.synonym")
@@ -22,8 +26,40 @@ public class SynonymProperties {
 
     /**
      * 同义词映射表：key=口语化表达，value=标准表达
+     * 支持从 Map 或字符串格式解析（格式："key1:value1,key2:value2"）
      */
     private Map<String, String> mappings = new HashMap<>();
+
+    /**
+     * 从字符串解析同义词映射（用于环境变量配置）
+     * 格式："key1:value1,key2:value2"
+     */
+    private String mappingsStr;
+
+    @PostConstruct
+    public void init() {
+        // 如果配置了字符串格式的映射，解析并合并到 mappings
+        if (StringUtils.hasText(mappingsStr)) {
+            parseMappingsStr();
+        }
+    }
+
+    private void parseMappingsStr() {
+        try {
+            Map<String, String> parsed = new HashMap<>();
+            String[] pairs = mappingsStr.split(",");
+            for (String pair : pairs) {
+                String[] kv = pair.trim().split(":");
+                if (kv.length == 2) {
+                    parsed.put(kv[0].trim(), kv[1].trim());
+                }
+            }
+            mappings.putAll(parsed);
+            log.info("[同义词配置] 从环境变量解析了 {} 条自定义映射", parsed.size());
+        } catch (Exception e) {
+            log.warn("[同义词配置] 解析 mappingsStr 失败: {}", mappingsStr);
+        }
+    }
 
     /**
      * 默认同义词（当配置文件未指定时使用）
@@ -68,7 +104,6 @@ public class SynonymProperties {
                 // ===== 常用技术缩写 =====
                 Map.entry("sb", "springboot"),
                 Map.entry("spring boot", "springboot"),
-                Map.entry("k8s", "kubernetes"),
                 Map.entry("k8s", "kubernetes"),
                 Map.entry("db", "数据库"),
                 Map.entry("api", "接口"),

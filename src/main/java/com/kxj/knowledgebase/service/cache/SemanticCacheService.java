@@ -35,9 +35,13 @@ public class SemanticCacheService {
     private final RedisTemplate<String, String> redisTemplate;
     private final CacheProperties cacheProperties;
     private final SynonymNormalizer synonymNormalizer;
+    private final HnswVectorIndexService hnswIndex;  // HNSW 向量索引（可选优化）
 
     // 本地缓存：问题 -> 答案（用于精确匹配加速）
     private Cache<String, CacheEntry> localSemanticCache;
+
+    // HNSW 启用阈值（缓存条目超过此值时启用 HNSW）
+    private static final int HNSW_ENABLE_THRESHOLD = 500;
 
     // 缓存 Key 前缀
     private static final String SEMANTIC_CACHE_PREFIX = "semantic:qa:";
@@ -88,8 +92,9 @@ public class SemanticCacheService {
             return exactAnswer;
         }
 
-        // L3: 向量相似度匹配（最智能，能处理"Spring Boot是什么" vs "什么是Spring Boot"）
-        String semanticAnswer = findBySimilarity(embedding, questionHash);
+        // L3: 向量相似度匹配
+        // 优先使用 HNSW 索引（如果可用且缓存条目足够多）
+        String semanticAnswer = findBySimilarityWithHnsw(embedding, questionHash);
         if (semanticAnswer != null) {
             log.info("[语义缓存 L3命中-相似] 问题: {}", truncate(question, 30));
             return semanticAnswer;
@@ -134,6 +139,9 @@ public class SemanticCacheService {
         // 添加到问题索引（用于后续相似度扫描）
         redisTemplate.opsForSet().add(QUESTION_INDEX_KEY, questionHash);
 
+        // 添加到 HNSW 索引（如果启用）
+        hnswIndex.add(questionHash, embedding, answer);
+
         // 回填本地缓存
         localSemanticCache.put(questionHash, CacheEntry.builder()
                 .question(normalizedQuestion)
@@ -145,14 +153,47 @@ public class SemanticCacheService {
     }
 
     /**
-     * 基于向量相似度查找缓存
+     * 使用 HNSW 索引或暴力扫描查找相似向量
+     *
+     * 策略：
+     * 1. 如果缓存条目 > HNSW_ENABLE_THRESHOLD 且 HNSW 可用，使用 HNSW 搜索
+     * 2. 否则使用暴力扫描（兼容小数据量）
+     */
+    private String findBySimilarityWithHnsw(float[] queryEmbedding, String excludeHash) {
+        // 判断是否启用 HNSW
+        if (shouldUseHnsw()) {
+            // 使用 HNSW 快速搜索
+            String result = hnswIndex.search(queryEmbedding, 1, cacheProperties.getSimilarityThreshold());
+            if (result != null) {
+                log.debug("[HNSW 索引命中]");
+                return result;
+            }
+        }
+
+        // 回退：暴力扫描（HNSW 未启用或不可用时）
+        return findBySimilarityBruteForce(queryEmbedding, excludeHash);
+    }
+
+    /**
+     * 判断是否应使用 HNSW 索引
+     */
+    private boolean shouldUseHnsw() {
+        if (!hnswIndex.isAvailable()) {
+            return false;
+        }
+        // 当 HNSW 索引大小超过阈值时使用
+        return hnswIndex.size() >= HNSW_ENABLE_THRESHOLD;
+    }
+
+    /**
+     * 基于向量相似度暴力扫描查找缓存（O(N) 复杂度）
      *
      * 策略：
      * 1. 获取最近缓存的 N 个问题
      * 2. 计算当前问题与候选问题的 embedding 余弦相似度
      * 3. 超过阈值则视为命中
      */
-    private String findBySimilarity(float[] queryEmbedding, String excludeHash) {
+    private String findBySimilarityBruteForce(float[] queryEmbedding, String excludeHash) {
         // 获取候选问题（从 Redis Set 中读取）
         Set<String> candidateHashes = redisTemplate.opsForSet().members(QUESTION_INDEX_KEY);
         if (candidateHashes == null || candidateHashes.isEmpty()) {
@@ -223,6 +264,9 @@ public class SemanticCacheService {
         redisTemplate.delete(QUESTION_INDEX_KEY);
         localSemanticCache.invalidateAll();
 
+        // 同时清空 HNSW 索引
+        hnswIndex.clear();
+
         log.info("[语义缓存 已清空]");
     }
 
@@ -231,10 +275,14 @@ public class SemanticCacheService {
      */
     public CacheStats getStats() {
         Set<String> index = redisTemplate.opsForSet().members(QUESTION_INDEX_KEY);
+
         return CacheStats.builder()
                 .localCacheSize(localSemanticCache.estimatedSize())
                 .localHitCount(localSemanticCache.stats().hitCount())
                 .redisIndexSize(index != null ? index.size() : 0)
+                .hnswEnabled(hnswIndex.isAvailable())
+                .hnswIndexSize(hnswIndex.size())
+                .hnswActive(hnswIndex.isAvailable() && hnswIndex.size() >= HNSW_ENABLE_THRESHOLD)
                 .build();
     }
 
@@ -319,5 +367,8 @@ public class SemanticCacheService {
         private long localCacheSize;
         private long localHitCount;
         private long redisIndexSize;
+        private boolean hnswEnabled;
+        private int hnswIndexSize;
+        private boolean hnswActive;
     }
 }

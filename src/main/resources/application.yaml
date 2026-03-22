@@ -106,6 +106,7 @@ cache:
     max-candidate-scan: ${CACHE_MAX_CANDIDATE_SCAN:100}
   synonym:
     enabled: ${CACHE_SYNONYM_ENABLED:true}
-    # 自定义同义词映射（可选），格式：口语化表达: 标准表达
-    # 例如：mappings: "咋用:怎么用,啥:什么"
-    mappings: ${CACHE_SYNONYM_MAPPINGS:}
+    # 自定义同义词映射（可选）
+    # 格式：key1:value1,key2:value2
+    # 例如：mappings-str: "咋用:怎么用,啥:什么"
+    mappings-str: ${CACHE_SYNONYM_MAPPINGS_STR:}

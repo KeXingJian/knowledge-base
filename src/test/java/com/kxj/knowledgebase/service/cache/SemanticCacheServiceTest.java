@@ -33,6 +33,10 @@ class SemanticCacheServiceTest {
     private HashOperations<String, Object, Object> hashOps;
     @Mock
     private SetOperations<String, String> setOps;
+    @Mock
+    private SynonymNormalizer synonymNormalizer;
+    @Mock
+    private HnswVectorIndexService hnswIndex;
 
     private CacheProperties cacheProperties;
     private SemanticCacheService service;
@@ -59,7 +63,17 @@ class SemanticCacheServiceTest {
         lenient().when(redisTemplate.opsForHash()).thenReturn(hashOps);
         lenient().when(redisTemplate.opsForSet()).thenReturn(setOps);
 
-        service = new SemanticCacheService(redisTemplate, cacheProperties);
+        // Mock SynonymNormalizer 行为
+        lenient().when(synonymNormalizer.normalizeForCache(anyString())).thenAnswer(inv -> {
+            String arg = inv.getArgument(0);
+            return arg != null ? arg.toLowerCase().replaceAll("[\\s\\p{P}]+", "") : "";
+        });
+
+        // Mock HnswVectorIndexService 行为
+        lenient().when(hnswIndex.isAvailable()).thenReturn(true);
+        lenient().when(hnswIndex.size()).thenReturn(0); // 默认小于阈值，使用暴力扫描
+
+        service = new SemanticCacheService(redisTemplate, cacheProperties, synonymNormalizer, hnswIndex);
         service.init();
     }
 
