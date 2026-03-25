@@ -12,7 +12,7 @@ import com.kxj.knowledgebase.service.cache.SemanticCacheService;
 import com.kxj.knowledgebase.service.embedding.CachedEmbeddingService;
 import com.kxj.knowledgebase.service.rag.RAGService;
 import com.kxj.knowledgebase.service.retriever.HybridRetriever;
-import com.kxj.knowledgebase.service.retriever.ParentAwareRetriever;
+import com.kxj.knowledgebase.service.retriever.ParentAwareHybridRetriever;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -33,7 +33,7 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final HybridRetriever hybridRetriever;
-    private final ParentAwareRetriever parentAwareRetriever;
+    private final ParentAwareHybridRetriever parentAwareHybridRetriever;
     private final RAGService ragService;
     private final CachedEmbeddingService cachedEmbeddingService;
     private final SemanticCacheService semanticCacheService;
@@ -135,9 +135,9 @@ public class ConversationService {
             return cachedAnswer;
         }
 
-        // 使用父文档感知检索：先检索子块，再加载父块作为上下文
-        List<ParentAwareRetriever.RetrievalResult> retrievalResults =
-                parentAwareRetriever.retrieve(question, 10, 3);
+        // 使用父文档混合检索：向量+全文检索子块，再加载父块作为上下文
+        List<ParentAwareHybridRetriever.RetrievalResult> retrievalResults =
+                parentAwareHybridRetriever.retrieve(question, queryEmbedding, 10, 3);
 
         if (retrievalResults.isEmpty()) {
             log.warn("[未找到相关文档片段]");
@@ -147,7 +147,7 @@ public class ConversationService {
         }
 
         // 构建带引用的上下文
-        String context = parentAwareRetriever.buildContextWithCitations(retrievalResults);
+        String context = parentAwareHybridRetriever.buildContextWithCitations(retrievalResults);
 
         // 记录检索到的片段信息
         String retrievedChunksJson = retrievalResults.stream()
@@ -160,6 +160,29 @@ public class ConversationService {
                 .collect(Collectors.joining(","));
 
         log.info("[父文档检索完成] {} 个父块，开始生成回答", retrievalResults.size());
+
+        // 打印命中的子块详情
+        retrievalResults.forEach(result -> {
+            log.info("========== 父块 [{}] ==========", result.getSectionTitle() != null ? result.getSectionTitle() : "未命名");
+            log.info("页码: {}, 相关度: {}", result.getPageRange(),
+                    String.format("%.2f", result.getRelevanceScore()));
+            log.info("命中 {} 个子块:", result.getMatchedChildren().size());
+
+            result.getMatchedChildren().forEach(child -> {
+                String typeIcon = switch (child.getMatchType()) {
+                    case "vector" -> "【向量】";
+                    case "fulltext" -> "【全文】";
+                    case "hybrid" -> "【混合】";
+                    default -> "【未知】";
+                };
+                log.info("  {} 子块#{} (相似度: {})", typeIcon, child.getChunkIndex(),
+                        String.format("%.2f", child.getMatchScore()));
+                log.info("     内容: {}", child.getContent() != null ?
+                        (child.getContent().length() > 200 ? child.getContent().substring(0, 200) + "..." : child.getContent())
+                        : "无内容");
+            });
+            log.info("");
+        });
 
         String answer = ragService.answerWithContext(question, context, history);
 

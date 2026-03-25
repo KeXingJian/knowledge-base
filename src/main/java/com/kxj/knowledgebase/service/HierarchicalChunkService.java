@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 分层切分服务
@@ -55,7 +56,7 @@ public class HierarchicalChunkService {
                 ? parseResult.getMetadata().getOrDefault("title", document.getFileName())
                 : document.getFileName();
 
-        log.info("[开始分层切分文档: {}]", document.getFileName());
+        log.info("[开始分层切分文档: {}, documentId={}]", document.getFileName(), document.getId());
 
         // 1. 创建父块（按文档结构）
         List<ParentSegment> parentSegments = createParentSegments(pages, fullText);
@@ -78,10 +79,12 @@ public class HierarchicalChunkService {
                     document, parentSeg, parentChunk, childGlobalIndex, documentTitle
             );
 
-            // 建立父子关联
+            // 建立父子关联（用父块的临时索引，保存后会更新为真实ID）
             parentChunk.setSubChunkCount(childChunks.size());
+            // 使用负数作为临时父块标识，保存后会更新
+            long tempParentId = -1L * (parentIndex + 1);
             for (DocumentChunk child : childChunks) {
-                child.setParentChunkId(parentChunk.getId());
+                child.setParentChunkId(tempParentId);
                 allChunks.add(child);
             }
 
@@ -91,8 +94,17 @@ public class HierarchicalChunkService {
             log.debug("[父块 {} 创建 {} 个子块]", parentIndex, childChunks.size());
         }
 
-        log.info("[分层切分完成: {} 个父块, {} 个子块, 总计 {} 个chunks]",
-                parentIndex, childGlobalIndex, allChunks.size());
+        // 验证所有 chunks 的 document_id
+        long distinctDocIds = allChunks.stream().map(DocumentChunk::getDocumentId).distinct().count();
+        log.info("[分层切分完成: {} 个父块, {} 个子块, 总计 {} 个chunks, documentId 分布: {} 个不同值]",
+                parentIndex, childGlobalIndex, allChunks.size(), distinctDocIds);
+
+        if (distinctDocIds != 1) {
+            log.error("[文档ID不一致！发现 {} 个不同的 document_id]", distinctDocIds);
+            allChunks.stream()
+                    .collect(Collectors.groupingBy(DocumentChunk::getDocumentId, Collectors.counting()))
+                    .forEach((docId, count) -> log.error("  document_id={}: {} 个chunks", docId, count));
+        }
 
         return allChunks;
     }
@@ -239,9 +251,9 @@ public class HierarchicalChunkService {
 
         String content = segment.text();
 
-        // 父块可以选择不向量化（节省存储），这里保留向量用于可能的父块直接检索
-        float[] embedding = embeddingService.embed(content);
-        String embeddingString = StringUtils.floatArrayToString(embedding);
+        // 父块不向量化（节省存储），只有子块有向量用于检索
+        // embedding 字段在数据库中是 NOT NULL，所以设置为空字符串或特殊标记
+        String emptyEmbedding = StringUtils.floatArrayToString(new float[768]);
 
         ChunkMetadata metadata = ChunkMetadata.builder()
                 .chunkIndex(parentIndex)
@@ -259,7 +271,7 @@ public class HierarchicalChunkService {
                 .documentId(document.getId())
                 .chunkIndex(parentIndex)
                 .content(content)
-                .embedding(embeddingString)
+                .embedding(emptyEmbedding)  // 父块无有效向量
                 .createTime(LocalDateTime.now())
                 .metadata(metadata.toJson())
                 .tokenCount(metadata.getTokenCount())

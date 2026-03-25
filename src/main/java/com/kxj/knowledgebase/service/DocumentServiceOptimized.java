@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -44,7 +45,6 @@ import java.util.stream.Collectors;
 public class DocumentServiceOptimized {
 
     private final DocumentRepository documentRepository;
-    private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
     @Getter
     private final MinioService minioService;
@@ -54,7 +54,6 @@ public class DocumentServiceOptimized {
     private final Semaphore globalSemaphore;
     private final CacheInvalidationService cacheInvalidationService;
     private final DocumentParserFactory parserFactory;
-    private final EnhancedChunkService enhancedChunkService;
     private final HierarchicalChunkService hierarchicalChunkService;
 
     @Transactional
@@ -235,12 +234,31 @@ public class DocumentServiceOptimized {
             long parentCount = allChunks.stream().filter(c -> c.getChunkLevel() == 0).count();
             long childCount = allChunks.stream().filter(c -> c.getChunkLevel() == 1).count();
 
-            log.info("[文档切分完成: {} 个父块, {} 个子块, 开始批量保存]", parentCount, childCount);
+            // 验证 document_id 一致性
+            long distinctDocIds = allChunks.stream().map(DocumentChunk::getDocumentId).distinct().count();
+            Long firstDocId = allChunks.isEmpty() ? null : allChunks.get(0).getDocumentId();
+            log.info("[文档切分完成: {} 个父块, {} 个子块, documentId={}, 一致性检查: {} 个不同值]",
+                    parentCount, childCount, firstDocId, distinctDocIds);
 
+            if (distinctDocIds != 1) {
+                log.error("[严重错误：document_id 不一致！发现 {} 个不同的值]", distinctDocIds);
+                allChunks.stream()
+                        .collect(Collectors.groupingBy(DocumentChunk::getDocumentId, Collectors.counting()))
+                        .forEach((docId, count) -> log.error("  document_id={}: {} 个chunks", docId, count));
+            }
+
+            // 分批保存所有 chunks
             int batchSize = documentProcessingProperties.getBatchSize();
             for (int i = 0; i < allChunks.size(); i += batchSize) {
                 int end = Math.min(i + batchSize, allChunks.size());
                 List<DocumentChunk> batch = allChunks.subList(i, end);
+
+                // 验证批次内的 document_id
+                Set<Long> batchDocIds = batch.stream().map(DocumentChunk::getDocumentId).collect(Collectors.toSet());
+                if (batchDocIds.size() > 1) {
+                    log.error("[批次 {} 包含多个 document_id: {}]", (i / batchSize) + 1, batchDocIds);
+                }
+
                 vectorStoreService.saveChunks(new ArrayList<>(batch));
                 log.info("[已保存批次 {}/{}, 片段数: {}]",
                     (i / batchSize) + 1,
@@ -248,166 +266,96 @@ public class DocumentServiceOptimized {
                     batch.size());
             }
 
+            // 更新关联 ID（parent_chunk_id, prev/next chunk_id）
+            updateChunkRelationships(allChunks);
+
             document.setChunkCount((int) childCount); // 文档的 chunkCount 记录子块数（可检索的）
             log.info("[文档处理完成: {} 个父块, {} 个子块]", parentCount, childCount);
         }
     }
 
-    /**
-     * 智能文本切分：按句子边界切分，并保留重叠窗口
-     *
-     * @param text 原始文本
-     * @param chunkSize 目标块大小（字符数）
-     * @param overlapRatio 重叠比例 (0.0-1.0)
-     * @return 切分后的文本块列表
-     */
-    private List<String> splitIntoChunksWithOverlap(String text, int chunkSize, double overlapRatio) {
-        List<String> chunks = new ArrayList<>();
 
-        // 1. 先按句子边界分割
-        List<String> sentences = splitIntoSentences(text);
-        if (sentences.isEmpty()) {
-            return chunks;
+    /**
+     * 更新 chunks 之间的关联关系
+     * - 更新子块的 parent_chunk_id（从临时ID更新为真实ID）
+     * - 更新相邻子块的 prev/next chunk_id
+     */
+    private void updateChunkRelationships(List<DocumentChunk> allChunks) {
+        log.info("[开始更新 chunks 关联关系]");
+
+        // 1. 建立临时索引到真实 chunk 的映射
+        // 父块使用临时负ID：-1, -2, -3...
+        Map<Long, Long> tempIdToRealId = new HashMap<>();
+
+        int parentIndex = 0;
+        for (DocumentChunk chunk : allChunks) {
+            if (chunk.getChunkLevel() == 0) {
+                // 父块：使用临时负ID
+                long tempId = -1L * (parentIndex + 1);
+                tempIdToRealId.put(tempId, chunk.getId());
+                parentIndex++;
+            }
         }
 
-        // 2. 滑动窗口组块，保留重叠
-        StringBuilder currentChunk = new StringBuilder();
-        List<String> overlapBuffer = new ArrayList<>(); // 用于存储将进入下一块的句子
-        int overlapTarget = (int) (chunkSize * overlapRatio);
+        // 2. 按临时父块ID分组（必须在更新parentChunkId之前做！）
+        Map<Long, List<DocumentChunk>> parentToChildren = allChunks.stream()
+                .filter(c -> c.getChunkLevel() == 1 && c.getParentChunkId() != null && c.getParentChunkId() < 0)
+                .collect(Collectors.groupingBy(DocumentChunk::getParentChunkId));
 
-        for (int i = 0; i < sentences.size(); i++) {
-            String sentence = sentences.get(i);
+        log.info("[父块分组完成] {} 个父块有子块", parentToChildren.size());
 
-            // 如果当前块为空，先添加重叠缓冲区内容
-            if (currentChunk.isEmpty() && !overlapBuffer.isEmpty()) {
-                for (String overlapSentence : overlapBuffer) {
-                    currentChunk.append(overlapSentence);
+        // 3. 更新子块的 parent_chunk_id（从临时ID更新为真实ID）
+        List<DocumentChunk> chunksToUpdate = new ArrayList<>();
+        for (DocumentChunk chunk : allChunks) {
+            if (chunk.getChunkLevel() == 1 && chunk.getParentChunkId() != null) {
+                Long tempParentId = chunk.getParentChunkId();
+                if (tempParentId < 0) {
+                    Long realParentId = tempIdToRealId.get(tempParentId);
+                    if (realParentId != null) {
+                        chunk.setParentChunkId(realParentId);
+                        chunksToUpdate.add(chunk);
+                    } else {
+                        log.warn("[未找到临时父块ID的映射: tempId={}]", tempParentId);
+                    }
                 }
-                overlapBuffer.clear();
-            }
-
-            // 添加当前句子
-            currentChunk.append(sentence);
-
-            // 检查是否达到切分阈值
-            if (currentChunk.length() >= chunkSize) {
-                chunks.add(currentChunk.toString().trim());
-
-                // 准备重叠内容：从当前块末尾收集句子作为下一块的开头
-                String chunkText = currentChunk.toString();
-                overlapBuffer = extractOverlapSentences(chunkText, overlapTarget);
-
-                // 重置当前块
-                currentChunk.setLength(0);
             }
         }
 
-        // 处理最后剩余的内容
-        if (!currentChunk.isEmpty()) {
-            chunks.add(currentChunk.toString().trim());
-        }
+        // 4. 按父块分组，设置子块之间的 prev/next 关系
+        for (Map.Entry<Long, List<DocumentChunk>> entry : parentToChildren.entrySet()) {
+            Long tempParentId = entry.getKey();
+            List<DocumentChunk> children = entry.getValue();
+            Long realParentId = tempIdToRealId.get(tempParentId);
 
-        return chunks;
-    }
+            if (realParentId == null) {
+                log.warn("[跳过 prev/next 设置: 临时父块ID {} 未找到映射]", tempParentId);
+                continue;
+            }
 
-    /**
-     * 按句子边界分割文本
-     * 支持中文和英文句子边界：。！？.!?
-     */
-    private List<String> splitIntoSentences(String text) {
-        List<String> sentences = new ArrayList<>();
-        // 按句子结束符分割，保留分隔符
-        // 匹配：。！？.!? 后跟空格或换行或结束
-        String[] parts = text.split("(?<=[。！？.!?])\\s*");
+            // 按 chunkIndex 排序
+            children.sort(Comparator.comparingInt(DocumentChunk::getChunkIndex));
 
-        for (String part : parts) {
-            String trimmed = part.trim();
-            if (!trimmed.isEmpty()) {
-                // 确保句子以换行或空格结尾，便于后续拼接
-                if (!trimmed.endsWith("\n")) {
-                    trimmed += " ";
+            log.debug("[父块 {}] 设置 {} 个子块的 prev/next 关系", realParentId, children.size());
+
+            for (int i = 0; i < children.size(); i++) {
+                DocumentChunk current = children.get(i);
+                if (i > 0) {
+                    current.setPrevChunkId(children.get(i - 1).getId());
                 }
-                sentences.add(trimmed);
+                if (i < children.size() - 1) {
+                    current.setNextChunkId(children.get(i + 1).getId());
+                }
+                if (!chunksToUpdate.contains(current)) {
+                    chunksToUpdate.add(current);
+                }
             }
         }
 
-        return sentences;
-    }
-
-    /**
-     * 从文本末尾提取指定长度的句子作为重叠内容
-     */
-    private List<String> extractOverlapSentences(String text, int targetOverlapLength) {
-        List<String> overlapSentences = new ArrayList<>();
-
-        // 重新按句子分割这段文本
-        String[] sentences = text.split("(?<=[。！？.!?])\\s*");
-
-        int currentOverlap = 0;
-        // 从后往前收集句子，直到达到目标重叠长度
-        for (int j = sentences.length - 1; j >= 0; j--) {
-            String s = sentences[j].trim();
-            if (s.isEmpty()) continue;
-
-            if (!s.endsWith("\n")) {
-                s += " ";
-            }
-
-            overlapSentences.add(0, s); // 插入头部保持顺序
-            currentOverlap += s.length();
-
-            // 至少保留一个句子，且达到目标长度时停止
-            if (overlapSentences.size() >= 1 && currentOverlap >= targetOverlapLength) {
-                break;
-            }
+        // 5. 批量保存更新
+        if (!chunksToUpdate.isEmpty()) {
+            vectorStoreService.saveChunks(chunksToUpdate);
+            log.info("[关联关系更新完成: {} 个 chunks 已更新]", chunksToUpdate.size());
         }
-
-        return overlapSentences;
-    }
-
-    private List<DocumentChunk> processChunksInParallelOptimized(List<String> chunkContents, Document document) {
-        int totalChunks = chunkContents.size();
-        AtomicInteger completedCount = new AtomicInteger(0);
-
-        List<DocumentChunk> allChunks = chunkContents.stream()
-                .map(chunkContent -> CompletableFuture.supplyAsync(() -> {
-                    int index = completedCount.getAndIncrement();
-                    return processChunk(chunkContent, index, document);
-                }, embeddingExecutorService))
-                .toList()
-                .stream()
-                .map(CompletableFuture::join)
-                .filter(chunk -> chunk != null)
-                .collect(Collectors.toList());
-
-        log.info("[所有向量化任务完成，成功处理 {} 个片段]", allChunks.size());
-        return allChunks;
-    }
-
-    private DocumentChunk processChunk(String chunkContent, int index, Document document) {
-        if (chunkContent.trim().isEmpty()) {
-            return null;
-        }
-
-        log.info("[开始向量化片段 {}, 内容长度: {}]", index, chunkContent.length());
-
-        float[] embedding = embeddingService.embed(chunkContent);
-        String embeddingString = StringUtils.floatArrayToString(embedding);
-        int tokenCount = StringUtils.estimateTokenCount(chunkContent);
-        String metadata = "chunk_index=" + index + ",token_count=" + tokenCount;
-
-        DocumentChunk documentChunk = DocumentChunk.builder()
-            .documentId(document.getId())
-            .chunkIndex(index)
-            .content(chunkContent)
-            .embedding(embeddingString)
-            .createTime(LocalDateTime.now())
-            .metadata(metadata)
-            .tokenCount(tokenCount)
-            .build();
-
-        log.info("[片段 {} 向量化完成]", index);
-        return documentChunk;
     }
 
     private void incrementCounter(String key) {
