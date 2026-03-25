@@ -8,6 +8,8 @@ import com.kxj.knowledgebase.entity.DocumentChunk;
 import com.kxj.knowledgebase.repository.DocumentRepository;
 import com.kxj.knowledgebase.service.cache.CacheInvalidationService;
 import com.kxj.knowledgebase.service.embedding.EmbeddingService;
+import com.kxj.knowledgebase.service.parser.DocumentParserFactory;
+import com.kxj.knowledgebase.service.parser.ParseResult;
 import com.kxj.knowledgebase.service.storage.MinioService;
 import com.kxj.knowledgebase.service.storage.VectorStoreService;
 import com.kxj.knowledgebase.util.FileUtils;
@@ -20,7 +22,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -52,6 +53,9 @@ public class DocumentServiceOptimized {
     private final RedisTemplate<String, Object> redisTemplate;
     private final Semaphore globalSemaphore;
     private final CacheInvalidationService cacheInvalidationService;
+    private final DocumentParserFactory parserFactory;
+    private final EnhancedChunkService enhancedChunkService;
+    private final HierarchicalChunkService hierarchicalChunkService;
 
     @Transactional
     public String processDocumentsBatch(List<MultipartFile> files) {
@@ -201,35 +205,37 @@ public class DocumentServiceOptimized {
 
     private void processDocumentInBatchesOptimized(String objectName, Document document) throws IOException {
         log.info("[开始从 MinIO 下载文件: {}]", objectName);
-        try (InputStream inputStream = minioService.downloadFile(objectName);
-             BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(inputStream))) {
 
-            log.info("[开始智能切分文档：按句子边界 + 重叠窗口]");
+        try (InputStream inputStream = minioService.downloadFile(objectName)) {
 
-            // 读取全部文本内容
-            StringBuilder contentBuilder = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                contentBuilder.append(line).append("\n");
+            log.info("[开始分层切分文档：父块+子块结构]");
+
+            // 使用解析器提取文本内容
+            String fileType = document.getFileType();
+            var parser = parserFactory.getParser(fileType);
+            ParseResult parseResult = parser.parse(inputStream, document.getFileName());
+
+            if (!parseResult.isSuccess()) {
+                throw new IOException("文档解析失败: " + parseResult.getErrorMessage());
             }
-            String fullText = contentBuilder.toString();
 
-            // 使用智能切分：按句子边界 + 重叠窗口
-            List<String> chunkContents = splitIntoChunksWithOverlap(
-                fullText,
-                documentProcessingProperties.getChunkSize(),
-                documentProcessingProperties.getOverlapRatio()
+            // 使用分层切分服务创建父块+子块结构
+            List<DocumentChunk> allChunks = hierarchicalChunkService.createHierarchicalChunks(
+                    parseResult,
+                    document
             );
 
-            int totalChunks = chunkContents.size();
-            log.info("[文档切分完成，共 {} 个片段，开始并发向量化]", totalChunks);
+            if (allChunks.isEmpty()) {
+                log.warn("[文档内容为空: {}]", document.getFileName());
+                document.setChunkCount(0);
+                return;
+            }
 
-            List<DocumentChunk> allChunks;
+            // 统计父子块数量
+            long parentCount = allChunks.stream().filter(c -> c.getChunkLevel() == 0).count();
+            long childCount = allChunks.stream().filter(c -> c.getChunkLevel() == 1).count();
 
-            log.info("[启用并发向量化处理]");
-            allChunks = processChunksInParallelOptimized(chunkContents, document);
-
-            log.info("[向量化完成，开始批量保存 {} 个片段]", allChunks.size());
+            log.info("[文档切分完成: {} 个父块, {} 个子块, 开始批量保存]", parentCount, childCount);
 
             int batchSize = documentProcessingProperties.getBatchSize();
             for (int i = 0; i < allChunks.size(); i += batchSize) {
@@ -242,8 +248,8 @@ public class DocumentServiceOptimized {
                     batch.size());
             }
 
-            document.setChunkCount(allChunks.size());
-            log.info("[流式处理完成，共生成 {} 个片段]", allChunks.size());
+            document.setChunkCount((int) childCount); // 文档的 chunkCount 记录子块数（可检索的）
+            log.info("[文档处理完成: {} 个父块, {} 个子块]", parentCount, childCount);
         }
     }
 

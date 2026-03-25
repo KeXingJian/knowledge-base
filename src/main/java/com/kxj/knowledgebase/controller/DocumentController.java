@@ -62,15 +62,35 @@ public class DocumentController {
     }
 
     private static final Map<String, String> MIME_TYPES = Map.ofEntries(
-            Map.entry("txt",  "text/plain; charset=UTF-8"),
-            Map.entry("md",   "text/plain; charset=UTF-8"),
-            Map.entry("pdf",  "application/pdf"),
-            Map.entry("png",  "image/png"),
-            Map.entry("jpg",  "image/jpeg"),
+            // 文本文件
+            Map.entry("txt", "text/plain; charset=UTF-8"),
+            Map.entry("md", "text/markdown; charset=UTF-8"),
+            Map.entry("markdown", "text/markdown; charset=UTF-8"),
+            // PDF
+            Map.entry("pdf", "application/pdf"),
+            // Office 文档
+            Map.entry("doc", "application/msword"),
+            Map.entry("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            Map.entry("xls", "application/vnd.ms-excel"),
+            Map.entry("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            Map.entry("ppt", "application/vnd.ms-powerpoint"),
+            Map.entry("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+            // HTML
+            Map.entry("html", "text/html"),
+            Map.entry("htm", "text/html"),
+            // 代码文件
+            Map.entry("json", "application/json"),
+            Map.entry("xml", "application/xml"),
+            Map.entry("csv", "text/csv"),
+            Map.entry("yaml", "text/yaml"),
+            Map.entry("yml", "text/yaml"),
+            // 图片文件
+            Map.entry("png", "image/png"),
+            Map.entry("jpg", "image/jpeg"),
             Map.entry("jpeg", "image/jpeg"),
-            Map.entry("gif",  "image/gif"),
+            Map.entry("gif", "image/gif"),
             Map.entry("webp", "image/webp"),
-            Map.entry("svg",  "image/svg+xml")
+            Map.entry("svg", "image/svg+xml")
     );
 
     @GetMapping("/{id}/content")

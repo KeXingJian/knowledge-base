@@ -12,6 +12,7 @@ import com.kxj.knowledgebase.service.cache.SemanticCacheService;
 import com.kxj.knowledgebase.service.embedding.CachedEmbeddingService;
 import com.kxj.knowledgebase.service.rag.RAGService;
 import com.kxj.knowledgebase.service.retriever.HybridRetriever;
+import com.kxj.knowledgebase.service.retriever.ParentAwareRetriever;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -32,6 +33,7 @@ public class ConversationService {
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
     private final HybridRetriever hybridRetriever;
+    private final ParentAwareRetriever parentAwareRetriever;
     private final RAGService ragService;
     private final CachedEmbeddingService cachedEmbeddingService;
     private final SemanticCacheService semanticCacheService;
@@ -133,28 +135,31 @@ public class ConversationService {
             return cachedAnswer;
         }
 
-        List<SearchResult> searchResults = hybridRetriever.retrieve(question, queryEmbedding, 3);
+        // 使用父文档感知检索：先检索子块，再加载父块作为上下文
+        List<ParentAwareRetriever.RetrievalResult> retrievalResults =
+                parentAwareRetriever.retrieve(question, 10, 3);
 
-        if (searchResults.isEmpty()) {
+        if (retrievalResults.isEmpty()) {
             log.warn("[未找到相关文档片段]");
             String answer = "抱歉，我在知识库中没有找到与您问题相关的信息。";
             addMessage(conversation.getId(), "assistant", answer, null, null);
             return answer;
         }
 
-        String context = searchResults.stream()
-                .map(result -> result.getChunk().getContent())
-                .collect(Collectors.joining("\n\n"));
+        // 构建带引用的上下文
+        String context = parentAwareRetriever.buildContextWithCitations(retrievalResults);
 
-        String retrievedChunksJson = searchResults.stream()
-                .map(result -> String.format("{\"id\":%d,\"content\":\"%s\",\"score\":%.2f,\"source\":\"%s\"}",
-                        result.getChunk().getId(),
-                        result.getChunk().getContent().replace("\"", "\\\"").replace("\n", "\\n"),
-                        result.getScore(),
-                        result.getSource()))
+        // 记录检索到的片段信息
+        String retrievedChunksJson = retrievalResults.stream()
+                .map(result -> String.format(
+                        "{\"parentId\":%d,\"section\":\"%s\",\"page\":\"%s\",\"score\":%.2f}",
+                        result.getParentChunkId(),
+                        result.getSectionTitle() != null ? result.getSectionTitle().replace("\"", "\\\"") : "",
+                        result.getPageRange() != null ? result.getPageRange() : "",
+                        result.getRelevanceScore()))
                 .collect(Collectors.joining(","));
 
-        log.info("[找到 {} 个相关片段，开始生成回答]", searchResults.size());
+        log.info("[父文档检索完成] {} 个父块，开始生成回答", retrievalResults.size());
 
         String answer = ragService.answerWithContext(question, context, history);
 

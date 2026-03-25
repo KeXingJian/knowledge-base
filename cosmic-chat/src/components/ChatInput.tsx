@@ -180,7 +180,7 @@ const ChatInput = ({ onSend, disabled = false, onUploadSuccess }: ChatInputProps
             ref={fileInputRef}
             onChange={handleFileChange}
             multiple
-            accept=".txt,.pdf,.doc,.docx"
+            accept=".txt,.md,.markdown,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.html,.htm,.json,.xml,.yaml,.yml,.csv,.java,.py,.js,.ts,.css,.sql,.properties,.log"
             className="hidden"
           />
           <button

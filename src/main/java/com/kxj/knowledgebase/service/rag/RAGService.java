@@ -68,18 +68,20 @@ public class RAGService {
 
     private String buildPrompt(String question, String context) {
         return "你是一个智能助手，请根据以下提供的文档内容回答用户的问题。\n\n" +
+                "文档内容中的【数字】标记表示不同的来源段落，回答时请在相关观点后标注来源，如[1]、[2]。\n\n" +
                 "文档内容：\n" +
                 context +
                 "\n\n" +
                 "用户问题：\n" +
                 question +
                 "\n\n" +
-                "请根据文档内容回答问题。如果文档中没有相关信息，请直接说明，不要编造内容。";
+                "请根据文档内容回答问题，并在回答中标注信息来源（如[1]、[2]）。如果文档中没有相关信息，请直接说明，不要编造内容。";
     }
 
     private String buildPromptWithContext(String question, String context, List<ChatMessage> history) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("你是一个智能助手，请根据以下提供的文档内容和对话历史回答用户的问题。\n\n");
+        prompt.append("文档内容中的【数字】标记表示不同的来源段落，回答时请在相关观点后标注来源，如[1]、[2]。\n\n");
 
         if (!history.isEmpty()) {
             prompt.append("对话历史：\n");
@@ -95,7 +97,7 @@ public class RAGService {
               .append("用户问题：\n")
               .append(question)
               .append("\n\n")
-              .append("请根据文档内容和对话历史回答问题。如果文档中没有相关信息，请直接说明，不要编造内容。");
+              .append("请根据文档内容和对话历史回答问题，并在回答中标注信息来源（如[1]、[2]）。如果文档中没有相关信息，请直接说明，不要编造内容。");
 
         return prompt.toString();
     }
