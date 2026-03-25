@@ -4,7 +4,8 @@
       "Bash(./mvnw dependency:tree)",
       "Bash(./mvnw compile:*)",
       "Bash(./mvnw dependency:build-classpath -Dmdep.outputFile=cp.txt -q)",
-      "Bash(./mvnw spring-boot:run)"
+      "Bash(./mvnw spring-boot:run)",
+      "Bash(./mvnw clean:*)"
     ]
   }
 }

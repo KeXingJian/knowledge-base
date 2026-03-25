@@ -13,4 +13,6 @@ public class DocumentProcessingProperties {
     private boolean enableParallelProcessing = true;
     private int maxConcurrentDocuments = 5;
     private int maxConcurrentChunks = 20;
+    /** 块间重叠比例 (0.0-1.0)，默认0.2表示20%重叠 */
+    private double overlapRatio = 0.2;
 }

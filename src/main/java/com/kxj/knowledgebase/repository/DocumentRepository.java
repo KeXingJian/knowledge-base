@@ -10,9 +10,6 @@ import java.util.Optional;
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
-    List<Document> findByFileHash(String fileHash);
-
     List<Document> findByFileHashIn(List<String> fileHashes);
 
-    void deleteByFileHash(String fileHash);
 }

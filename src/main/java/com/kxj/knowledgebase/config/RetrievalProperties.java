@@ -11,6 +11,5 @@ public class RetrievalProperties {
     private int topK = 3;
     private double vectorWeight = 0.6;
     private double textWeight = 0.4;
-    private boolean enableFulltextSearch = true;
-    private boolean fallbackToKeywordSearch = true;
+
 }

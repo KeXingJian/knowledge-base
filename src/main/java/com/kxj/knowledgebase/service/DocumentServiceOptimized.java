@@ -204,29 +204,22 @@ public class DocumentServiceOptimized {
         try (InputStream inputStream = minioService.downloadFile(objectName);
              BufferedReader reader = new BufferedReader(new java.io.InputStreamReader(inputStream))) {
 
-            log.info("[开始流式切分文档]");
+            log.info("[开始智能切分文档：按句子边界 + 重叠窗口]");
 
-            List<String> chunkContents = new ArrayList<>();
-            StringBuilder chunkBuilder = new StringBuilder();
+            // 读取全部文本内容
+            StringBuilder contentBuilder = new StringBuilder();
             String line;
-            int currentLength = 0;
-            int chunkSize = documentProcessingProperties.getChunkSize();
-
             while ((line = reader.readLine()) != null) {
-                String trimmedLine = line.strip();
-                chunkBuilder.append(trimmedLine).append("\n");
-                currentLength += trimmedLine.length() + 1;
-
-                if (currentLength >= chunkSize) {
-                    chunkContents.add(chunkBuilder.toString());
-                    chunkBuilder.setLength(0);
-                    currentLength = 0;
-                }
+                contentBuilder.append(line).append("\n");
             }
+            String fullText = contentBuilder.toString();
 
-            if (!chunkBuilder.isEmpty()) {
-                chunkContents.add(chunkBuilder.toString());
-            }
+            // 使用智能切分：按句子边界 + 重叠窗口
+            List<String> chunkContents = splitIntoChunksWithOverlap(
+                fullText,
+                documentProcessingProperties.getChunkSize(),
+                documentProcessingProperties.getOverlapRatio()
+            );
 
             int totalChunks = chunkContents.size();
             log.info("[文档切分完成，共 {} 个片段，开始并发向量化]", totalChunks);
@@ -252,6 +245,118 @@ public class DocumentServiceOptimized {
             document.setChunkCount(allChunks.size());
             log.info("[流式处理完成，共生成 {} 个片段]", allChunks.size());
         }
+    }
+
+    /**
+     * 智能文本切分：按句子边界切分，并保留重叠窗口
+     *
+     * @param text 原始文本
+     * @param chunkSize 目标块大小（字符数）
+     * @param overlapRatio 重叠比例 (0.0-1.0)
+     * @return 切分后的文本块列表
+     */
+    private List<String> splitIntoChunksWithOverlap(String text, int chunkSize, double overlapRatio) {
+        List<String> chunks = new ArrayList<>();
+
+        // 1. 先按句子边界分割
+        List<String> sentences = splitIntoSentences(text);
+        if (sentences.isEmpty()) {
+            return chunks;
+        }
+
+        // 2. 滑动窗口组块，保留重叠
+        StringBuilder currentChunk = new StringBuilder();
+        List<String> overlapBuffer = new ArrayList<>(); // 用于存储将进入下一块的句子
+        int overlapTarget = (int) (chunkSize * overlapRatio);
+
+        for (int i = 0; i < sentences.size(); i++) {
+            String sentence = sentences.get(i);
+
+            // 如果当前块为空，先添加重叠缓冲区内容
+            if (currentChunk.isEmpty() && !overlapBuffer.isEmpty()) {
+                for (String overlapSentence : overlapBuffer) {
+                    currentChunk.append(overlapSentence);
+                }
+                overlapBuffer.clear();
+            }
+
+            // 添加当前句子
+            currentChunk.append(sentence);
+
+            // 检查是否达到切分阈值
+            if (currentChunk.length() >= chunkSize) {
+                chunks.add(currentChunk.toString().trim());
+
+                // 准备重叠内容：从当前块末尾收集句子作为下一块的开头
+                String chunkText = currentChunk.toString();
+                overlapBuffer = extractOverlapSentences(chunkText, overlapTarget);
+
+                // 重置当前块
+                currentChunk.setLength(0);
+            }
+        }
+
+        // 处理最后剩余的内容
+        if (!currentChunk.isEmpty()) {
+            chunks.add(currentChunk.toString().trim());
+        }
+
+        return chunks;
+    }
+
+    /**
+     * 按句子边界分割文本
+     * 支持中文和英文句子边界：。！？.!?
+     */
+    private List<String> splitIntoSentences(String text) {
+        List<String> sentences = new ArrayList<>();
+        // 按句子结束符分割，保留分隔符
+        // 匹配：。！？.!? 后跟空格或换行或结束
+        String[] parts = text.split("(?<=[。！？.!?])\\s*");
+
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                // 确保句子以换行或空格结尾，便于后续拼接
+                if (!trimmed.endsWith("\n")) {
+                    trimmed += " ";
+                }
+                sentences.add(trimmed);
+            }
+        }
+
+        return sentences;
+    }
+
+    /**
+     * 从文本末尾提取指定长度的句子作为重叠内容
+     */
+    private List<String> extractOverlapSentences(String text, int targetOverlapLength) {
+        List<String> overlapSentences = new ArrayList<>();
+
+        // 重新按句子分割这段文本
+        String[] sentences = text.split("(?<=[。！？.!?])\\s*");
+
+        int currentOverlap = 0;
+        // 从后往前收集句子，直到达到目标重叠长度
+        for (int j = sentences.length - 1; j >= 0; j--) {
+            String s = sentences[j].trim();
+            if (s.isEmpty()) continue;
+
+            if (!s.endsWith("\n")) {
+                s += " ";
+            }
+
+            overlapSentences.add(0, s); // 插入头部保持顺序
+            currentOverlap += s.length();
+
+            // 至少保留一个句子，且达到目标长度时停止
+            if (overlapSentences.size() >= 1 && currentOverlap >= targetOverlapLength) {
+                break;
+            }
+        }
+
+        return overlapSentences;
     }
 
     private List<DocumentChunk> processChunksInParallelOptimized(List<String> chunkContents, Document document) {

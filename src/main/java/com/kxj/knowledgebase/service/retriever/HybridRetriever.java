@@ -26,7 +26,7 @@ public class HybridRetriever {
         log.info("[开始混合检索，query: {}, topK: {}]", query, topK);
 
         List<SearchResult> vectorResults = vectorSearch(queryEmbedding, topK);
-        List<SearchResult> textResults = textSearch(query, topK);
+        List<SearchResult> textResults = fullTextSearch(query, topK);
 
         log.info("[向量检索结果: {}]", vectorResults);
         log.info("[全文检索结果: {}]", textResults);
@@ -46,23 +46,12 @@ public class HybridRetriever {
             .collect(Collectors.toList());
     }
 
-    private List<SearchResult> textSearch(String query, int topK) {
-        if (retrievalProperties.isEnableFulltextSearch()) {
-            return fullTextSearch(query, topK);
-        } else if (retrievalProperties.isFallbackToKeywordSearch()) {
-            return keywordSearch(query, topK);
-        } else {
-            log.info("[文本检索已禁用]");
-            return Collections.emptyList();
-        }
-    }
-
     private List<SearchResult> fullTextSearch(String query, int topK) {
         log.info("[执行全文检索，query: {}]", query);
-        
+
         try {
             List<FullTextSearchResult> results = chunkRepository.fullTextSearch(query, topK);
-            
+
             return results.stream()
                 .map(result -> {
                     DocumentChunk chunk = result.toDocumentChunk();
@@ -70,26 +59,6 @@ public class HybridRetriever {
                 })
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            log.warn("[全文检索失败，降级为关键词检索]", e);
-            if (retrievalProperties.isFallbackToKeywordSearch()) {
-                return keywordSearch(query, topK);
-            } else {
-                return Collections.emptyList();
-            }
-        }
-    }
-
-    private List<SearchResult> keywordSearch(String query, int topK) {
-        log.info("[执行关键词检索（降级方案）]");
-        
-        try {
-            List<DocumentChunk> chunks = chunkRepository.findByContentLike(query, topK);
-            
-            return chunks.stream()
-                .map(chunk -> new SearchResult(chunk, 1.0, "keyword"))
-                .collect(Collectors.toList());
-        } catch (Exception e) {
-            log.warn("[关键词检索失败]", e);
             return Collections.emptyList();
         }
     }
