@@ -6,6 +6,7 @@ import com.kxj.knowledgebase.dto.BatchUploadProgress;
 import com.kxj.knowledgebase.entity.Document;
 
 import com.kxj.knowledgebase.service.DocumentServiceOptimized;
+import com.kxj.knowledgebase.service.storage.MinioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -30,11 +31,14 @@ public class DocumentController {
 
     private final DocumentServiceOptimized documentService;
 
+    private final MinioService minioService;
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteDocument(@PathVariable Long id) {
         try {
             log.info("[收到删除文档请求: {}]", id);
             documentService.deleteDocument(id);
+
             return ApiResponse.success("文档删除成功", null);
         } catch (IllegalArgumentException e) {
             log.warn("[删除文档失败: {}]", e.getMessage());
@@ -109,7 +113,7 @@ public class DocumentController {
         String disposition = (download ? "attachment" : "inline") + "; filename*=UTF-8''" + encodedName;
 
         StreamingResponseBody body = outputStream -> {
-            try (InputStream inputStream = documentService.getMinioService().downloadFile(document.getFilePath())) {
+            try (InputStream inputStream = minioService.downloadFile(document.getFilePath())) {
                 byte[] buffer = new byte[8192];
                 int bytesRead;
                 while ((bytesRead = inputStream.read(buffer)) != -1) {

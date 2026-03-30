@@ -46,7 +46,6 @@ public class DocumentServiceOptimized {
 
     private final DocumentRepository documentRepository;
     private final VectorStoreService vectorStoreService;
-    @Getter
     private final MinioService minioService;
     private final ExecutorService embeddingExecutorService;
     private final DocumentProcessingProperties documentProcessingProperties;
